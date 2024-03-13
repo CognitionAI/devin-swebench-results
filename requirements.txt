@@ -1,0 +1,2 @@
+requests
+transformers>=4.34.0
