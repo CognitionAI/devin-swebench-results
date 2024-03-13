@@ -1,0 +1,13 @@
+diff --git a/sklearn/tree/_classes.py b/sklearn/tree/_classes.py
+index e2e41f9ae..bb1a47028 100644
+--- a/sklearn/tree/_classes.py
++++ b/sklearn/tree/_classes.py
+@@ -255,6 +255,8 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
+             min_samples_leaf = int(ceil(self.min_samples_leaf * n_samples))
+ 
+         if isinstance(self.min_samples_split, numbers.Integral):
++            if self.min_samples_split < 2:
++                raise ValueError("min_samples_split must be greater than or equal to 2 when it is an integer.")
+             min_samples_split = self.min_samples_split
+         else:  # float
+             min_samples_split = int(ceil(self.min_samples_split * n_samples))

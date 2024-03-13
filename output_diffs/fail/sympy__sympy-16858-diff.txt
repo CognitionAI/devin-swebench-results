@@ -1,0 +1,29 @@
+diff --git a/sympy/stats/crv_types.py b/sympy/stats/crv_types.py
+index cb28935cca..3916b32412 100644
+--- a/sympy/stats/crv_types.py
++++ b/sympy/stats/crv_types.py
+@@ -1205,6 +1205,11 @@ def FDistribution(name, d1, d2):
+ class FisherZDistribution(SingleContinuousDistribution):
+     _argnames = ('d1', 'd2')
+ 
++    @staticmethod
++    def check(d1, d2):
++        _value_check(d1 > 0, "d1 must be positive.")
++        _value_check(d2 > 0, "d2 must be positive.")
++
+     def pdf(self, x):
+         d1, d2 = self.d1, self.d2
+         return (2*d1**(d1/2)*d2**(d2/2) / beta_fn(d1/2, d2/2) *
+@@ -1274,6 +1279,12 @@ def FisherZ(name, d1, d2):
+ class FrechetDistribution(SingleContinuousDistribution):
+     _argnames = ('a', 's', 'm')
+ 
++    @staticmethod
++    def check(a, s, m):
++        _value_check(a > 0, "Shape parameter a must be positive.")
++        _value_check(s > 0, "Scale parameter s must be positive.")
++        _value_check(m.is_real, "Location parameter m must be real.")
++
+     set = Interval(0, oo)
+ 
+     def __new__(cls, a, s=1, m=0):

@@ -1,0 +1,56 @@
+diff --git a/django/db/migrations/serializer.py b/django/db/migrations/serializer.py
+index d88cda6e20..6c037529a2 100644
+--- a/django/db/migrations/serializer.py
++++ b/django/db/migrations/serializer.py
+@@ -163,14 +163,27 @@ class FrozensetSerializer(BaseUnorderedSequenceSerializer):
+ 
+ class FunctionTypeSerializer(BaseSerializer):
+     def serialize(self):
++        # Begin changes for nested class method serialization
++        # Check if the function is a method of a class
+         if getattr(self.value, "__self__", None) and isinstance(
+-            self.value.__self__, type
++            self.value.__self__, (type, types.ModuleType)
+         ):
+-            klass = self.value.__self__
+-            module = klass.__module__
+-            return "%s.%s.%s" % (module, klass.__name__, self.value.__name__), {
+-                "import %s" % module
+-            }
++            # Check if it's a method of a nested class
++            if hasattr(self.value.__self__, "__qualname__"):
++                klass = self.value.__self__
++                module = klass.__module__
++                klass_qualname = klass.__qualname__
++                func_name = self.value.__name__
++                # Serialize using the fully qualified name including the outer class name
++                return f"{module}.{klass_qualname}.{func_name}", {
++                    f"import {module}"
++                }
++            else:  # Method of a top-level class
++                klass = self.value.__self__
++                module = klass.__module__
++                return f"{module}.{klass.__name__}.{self.value.__name__}", {
++                    f"import {module}"
++                }
+         # Further error checking
+         if self.value.__name__ == "<lambda>":
+             raise ValueError("Cannot serialize function: lambda")
+@@ -180,13 +193,14 @@ class FunctionTypeSerializer(BaseSerializer):
+         module_name = self.value.__module__
+ 
+         if "<" not in self.value.__qualname__:  # Qualname can include <locals>
+-            return "%s.%s" % (module_name, self.value.__qualname__), {
+-                "import %s" % self.value.__module__
++            return f"{module_name}.{self.value.__qualname__}", {
++                f"import {module_name}"
+             }
+ 
+         raise ValueError(
+-            "Could not find function %s in %s.\n" % (self.value.__name__, module_name)
++            f"Could not find function {self.value.__name__} in {module_name}.\n"
+         )
++        # End changes for nested class method serialization
+ 
+ 
+ class FunctoolsPartialSerializer(BaseSerializer):

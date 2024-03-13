@@ -1,0 +1,58 @@
+diff --git a/pylint/lint/pylinter.py b/pylint/lint/pylinter.py
+index 53345a6b1..9fc2c934f 100644
+--- a/pylint/lint/pylinter.py
++++ b/pylint/lint/pylinter.py
+@@ -63,6 +63,7 @@ if sys.version_info >= (3, 8):
+ else:
+     from typing_extensions import Protocol
+ 
++import re
+ 
+ MANAGER = astroid.MANAGER
+ 
+@@ -564,12 +565,22 @@ class PyLinter(
+             if not msg.may_be_emitted():
+                 self._msgs_state[msg.msgid] = False
+ 
+-    @staticmethod
+-    def _discover_files(files_or_modules: Sequence[str]) -> Iterator[str]:
++    # Helper function to check against ignore patterns
++    def _is_path_ignored(self, path, ignore_list, ignore_list_re, ignore_list_paths_re):
++        basename = os.path.basename(path)
++        return (basename in ignore_list or
++                any(pattern.match(basename) for pattern in ignore_list_re) or
++                any(pattern.match(path) for pattern in ignore_list_paths_re))
++
++    # Updated _discover_files method with ignore checks
++    def _discover_files(self, files_or_modules: Sequence[str]) -> Iterator[str]:
+         """Discover python modules and packages in sub-directory.
+ 
+         Returns iterator of paths to discovered modules and packages.
+         """
++        ignore_list = self.config.ignore
++        ignore_list_re = [re.compile(pattern) for pattern in self.config.ignore_patterns]
++        ignore_list_paths_re = [re.compile(pattern) for pattern in self._ignore_paths]
+         for something in files_or_modules:
+             if os.path.isdir(something) and not os.path.isfile(
+                 os.path.join(something, "__init__.py")
+@@ -581,15 +592,17 @@ class PyLinter(
+                         continue
+                     if "__init__.py" in files:
+                         skip_subtrees.append(root)
+-                        yield root
++                        if not self._is_path_ignored(root, ignore_list, ignore_list_re, ignore_list_paths_re):
++                            yield root
+                     else:
+                         yield from (
+                             os.path.join(root, file)
+                             for file in files
+-                            if file.endswith(".py")
++                            if file.endswith(".py") and not self._is_path_ignored(os.path.join(root, file), ignore_list, ignore_list_re, ignore_list_paths_re)
+                         )
+             else:
+-                yield something
++                if not self._is_path_ignored(something, ignore_list, ignore_list_re, ignore_list_paths_re):
++                    yield something
+ 
+     def check(self, files_or_modules: Sequence[str] | str) -> None:
+         """Main checking entry: check a list of files or modules from their name.

@@ -1,0 +1,78 @@
+diff --git a/setup.py b/setup.py
+index 9258fded2..75cb0451a 100644
+--- a/setup.py
++++ b/setup.py
+@@ -21,7 +21,7 @@ install_requires = [
+     'sphinxcontrib-htmlhelp',
+     'sphinxcontrib-serializinghtml',
+     'sphinxcontrib-qthelp',
+-    'Jinja2>=2.3',
++    'Jinja2<3.1',
+     'Pygments>=2.0',
+     'docutils>=0.14',
+     'snowballstemmer>=1.1',
+diff --git a/sphinx/ext/autodoc/typehints.py b/sphinx/ext/autodoc/typehints.py
+index 9811bdb55..39f2e4a62 100644
+--- a/sphinx/ext/autodoc/typehints.py
++++ b/sphinx/ext/autodoc/typehints.py
+@@ -42,19 +42,30 @@ def merge_typehints(app: Sphinx, domain: str, objtype: str, contentnode: Element
+         return
+     if app.config.autodoc_typehints != 'description':
+         return
+-    if objtype == 'class' and app.config.autoclass_content not in ('init', 'both'):
+-        return
+ 
+-    try:
+-        signature = cast(addnodes.desc_signature, contentnode.parent[0])
+-        if signature['module']:
+-            fullname = '.'.join([signature['module'], signature['fullname']])
++    if contentnode.parent is not None and isinstance(contentnode.parent, list) and len(contentnode.parent) > 0:
++        first_node = contentnode.parent[0]
++        if isinstance(first_node, addnodes.desc_signature):
++            signature = first_node
++            if signature['module']:
++                fullname = '.'.join([signature['module'], signature['fullname']])
++            else:
++                fullname = signature['fullname']
+         else:
+-            fullname = signature['fullname']
+-    except KeyError:
+-        # signature node does not have valid context info for the target object
++            return
++    else:
+         return
+ 
++    if objtype == 'class':
++        init_annotations = app.env.temp_data.get('annotations', {}).get(fullname + '.__init__', {})
++        class_annotations = app.env.temp_data.get('annotations', {}).get(fullname, {})
++        if app.config.autoclass_content in ('init', 'both'):
++            pass
++        elif init_annotations:
++            for name, annotation in init_annotations.items():
++                if name not in class_annotations:
++                    class_annotations[name] = annotation
++
+     annotations = app.env.temp_data.get('annotations', {})
+     if annotations.get(fullname, {}):
+         field_lists = [n for n in contentnode if isinstance(n, nodes.field_list)]
+@@ -120,6 +131,7 @@ def modify_field_list(node: nodes.field_list, annotations: Dict[str, str]) -> No
+             node += field
+ 
+     if 'return' in annotations and 'return' not in arguments:
++        annotation = annotations['return']  # Define annotation
+         field = nodes.field()
+         field += nodes.field_name('', 'rtype')
+         field += nodes.field_body('', nodes.paragraph('', annotation))
+diff --git a/tox.ini b/tox.ini
+index bdf4c2ad3..b12166264 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -26,7 +26,7 @@ setenv =
+     PYTHONWARNINGS = all,ignore::ImportWarning:importlib._bootstrap_external,ignore::DeprecationWarning:site,ignore::DeprecationWarning:distutils,ignore::DeprecationWarning:pip._vendor.packaging.version
+     PYTEST_ADDOPTS = {env:PYTEST_ADDOPTS:} --color yes
+ commands=
+-    python -X dev -m pytest --durations 25 {posargs}
++    python -X dev -m pytest -rA --durations 25 {posargs}
+ 
+ [testenv:flake8]
+ basepython = python3

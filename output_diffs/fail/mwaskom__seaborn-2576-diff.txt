@@ -1,0 +1,103 @@
+diff --git a/seaborn/axisgrid.py b/seaborn/axisgrid.py
+index 5d293ed3..216232d4 100644
+--- a/seaborn/axisgrid.py
++++ b/seaborn/axisgrid.py
+@@ -33,6 +33,9 @@ class Grid:
+     _legend_out = True
+ 
+     def __init__(self):
++        self.fig = None  # This will be set when the figure is created
++        self.axes = None  # This will be set when the axes are created
++        self._legend_data = {}  # Initialize an empty dictionary for legend data
+ 
+         self._tight_layout_rect = [0, 0, 1, 1]
+         self._tight_layout_pad = None
+@@ -380,12 +383,12 @@ class FacetGrid(Grid):
+ 
+         if col_wrap is None:
+ 
+-            kwargs = dict(squeeze=False,
+-                          sharex=sharex, sharey=sharey,
+-                          subplot_kw=subplot_kws,
+-                          gridspec_kw=gridspec_kws)
++            # Before calling subplots, ensure sharex and sharey are not in subplot_kws
++            sharex = subplot_kws.pop("sharex", True)
++            sharey = subplot_kws.pop("sharey", True)
+ 
+-            axes = fig.subplots(nrow, ncol, **kwargs)
++            # Now call subplots with sharex and sharey as separate arguments
++            axes = fig.subplots(nrow, ncol, sharex=sharex, sharey=sharey, **subplot_kws)
+ 
+             if col is None and row is None:
+                 axes_dict = {}
+@@ -693,7 +696,7 @@ class FacetGrid(Grid):
+ 
+         Parameters
+         ----------
+-        func : callable
++        func : callable plotting function
+             A plotting function that takes data and keyword arguments. Unlike
+             the `map` method, a function used here must "understand" Pandas
+             objects. It also must plot to the currently active matplotlib Axes
+@@ -1075,7 +1078,7 @@ class PairGrid(Grid):
+     the marginal distribution of each variable can be shown on the diagonal.
+ 
+     Several different common plots can be generated in a single line using
+-    :func:`pairplot`. Use :class:`PairGrid` when you need more flexibility.
++    :func:`pairplot`. Use :class:`PairGrid` directly when you need more flexibility.
+ 
+     See the :ref:`tutorial <grid_tutorial>` for more information.
+ 
+@@ -1666,7 +1669,8 @@ class JointGrid(object):
+             for axis in [axes.xaxis, axes.yaxis]:
+                 axis.label.set_visible(False)
+         f.tight_layout()
+-        f.subplots_adjust(hspace=space, wspace=space)
++        if not marginal_ticks:
++            f.subplots_adjust(hspace=space, wspace=space)
+ 
+     def _inject_kwargs(self, func, kws, params):
+         """Add params to kws if they are accepted by func."""
+@@ -1845,14 +1849,13 @@ ratio : number
+ space : number
+     Space between the joint and marginal axes
+ dropna : bool
+-    If True, remove missing observations before plotting.
++    If True, remove observations that are missing from ``x`` and ``y``.
+ {{x, y}}lim : pairs of numbers
+-    Set axis limits to these values before plotting.
++    Axis limits to set before plotting.
+ marginal_ticks : bool
+     If False, suppress ticks on the count/density axis of the marginal plots.
+ {params.core.hue}
+-    Note: unlike in :class:`FacetGrid` or :class:`PairGrid`, the axes-level
+-    functions must support ``hue`` to use it in :class:`JointGrid`.
++    Semantic variable that is mapped to determine the color of plot elements.
+ {params.core.palette}
+ {params.core.hue_order}
+ {params.core.hue_norm}
+diff --git a/seaborn/regression.py b/seaborn/regression.py
+index e302149b..65b0831c 100644
+--- a/seaborn/regression.py
++++ b/seaborn/regression.py
+@@ -568,7 +568,7 @@ def lmplot(
+     units=None, seed=None, order=1, logistic=False, lowess=False,
+     robust=False, logx=False, x_partial=None, y_partial=None,
+     truncate=True, x_jitter=None, y_jitter=None, scatter_kws=None,
+-    line_kws=None, size=None
++    line_kws=None, size=None, xlim=None  # Add xlim parameter here
+ ):
+ 
+     # Handle deprecations
+@@ -632,6 +632,11 @@ def lmplot(
+     # Add a legend
+     if legend and (hue is not None) and (hue not in [col, row]):
+         facets.add_legend()
++
++    # Set the x-axis limits if xlim is provided
++    if xlim is not None:
++        facets.set(xlim=xlim)
++
+     return facets
+ 
+ 

@@ -1,0 +1,188 @@
+diff --git a/sympy/combinatorics/permutations.py b/sympy/combinatorics/permutations.py
+index ce21700fe8..01b0da8468 100644
+--- a/sympy/combinatorics/permutations.py
++++ b/sympy/combinatorics/permutations.py
+@@ -323,7 +323,7 @@ def __call__(self, *other):
+         Examples
+         ========
+ 
+-        >>> from sympy.combinatorics.permutations import Cycle as C
++        >>> from sympy.combinatorics import Cycle
+         >>> from sympy.combinatorics.permutations import Permutation as Perm
+         >>> C(1, 2)(2, 3)
+         (1 3 2)
+@@ -370,30 +370,26 @@ def list(self, size=None):
+ 
+         >>> Cycle(2, 4)(1, 2, 4).list(-1)
+         [0, 2, 1]
++        >>> Cycle(3).list(-1)
++        []
+         """
+         if not self and size is None:
+             raise ValueError('must give size for empty Cycle')
++        rv = self.get_array_form()
+         if size is not None:
+-            big = max([i for i in self.keys() if self[i] != i] + [0])
+-            size = max(size, big + 1)
+-        else:
+-            size = self.size
+-        return [self[i] for i in range(size)]
++            if size > self.size:
++                rv.extend(list(range(self.size, size)))
++            else:
++                # find first value from rhs where rv[i] != i
++                i = self.size - 1
++                while rv:
++                    if rv[-1] != i:
++                        break
++                    rv.pop()
++                    i -= 1
++        return rv
+ 
+     def __repr__(self):
+-        """We want it to print as a Cycle, not as a dict.
+-
+-        Examples
+-        ========
+-
+-        >>> from sympy.combinatorics import Cycle
+-        >>> Cycle(1, 2)
+-        (1 2)
+-        >>> print(_)
+-        (1 2)
+-        >>> list(Cycle(1, 2).items())
+-        [(1, 2), (2, 1)]
+-        """
+         if not self:
+             return 'Cycle()'
+         cycles = Permutation(self).cyclic_form
+@@ -465,6 +461,14 @@ def size(self):
+     def copy(self):
+         return Cycle(self)
+ 
++    def get_array_form(self):
++        # Construct the array form from the cycle's dictionary data
++        size = max(self.keys()) + 1 if self else 0
++        array_form = list(range(size))
++        for i in self:
++            array_form[i] = self[i]
++        return array_form
++
+ 
+ class Permutation(Atom):
+     """
+@@ -872,7 +876,7 @@ def __new__(cls, *args, **kwargs):
+         >>> _.array_form
+         [0, 4, 3, 5, 1, 2, 6, 7, 8, 9]
+         """
+-        size = kwargs.pop('size', None)
++        size = kwargs.pop('size', 0)  # Set default size to 0 if not provided
+         if size is not None:
+             size = int(size)
+ 
+@@ -1010,27 +1014,16 @@ def array_form(self):
+         return self._array_form[:]
+ 
+     def __repr__(self):
+-        if Permutation.print_cyclic:
+-            if not self.size:
+-                return 'Permutation()'
+-            # before taking Cycle notation, see if the last element is
+-            # a singleton and move it to the head of the string
+-            s = Cycle(self)(self.size - 1).__repr__()[len('Cycle'):]
+-            last = s.rfind('(')
+-            if not last == 0 and ',' not in s[last:]:
+-                s = s[last:] + s[:last]
+-            return 'Permutation%s' %s
+-        else:
+-            s = self.support()
+-            if not s:
+-                if self.size < 5:
+-                    return 'Permutation(%s)' % str(self.array_form)
+-                return 'Permutation([], size=%s)' % self.size
+-            trim = str(self.array_form[:s[-1] + 1]) + ', size=%s' % self.size
+-            use = full = str(self.array_form)
+-            if len(trim) < len(full):
+-                use = trim
+-            return 'Permutation(%s)' % use
++        s = self.support()
++        if not s:
++            if self.size < 5:
++                return 'Permutation(%s)' % str(self.array_form)
++            return 'Permutation([], size=%s)' % self.size
++        trim = str(self.array_form[:s[-1] + 1]) + ', size=%s' % self.size
++        use = full = str(self.array_form)
++        if len(trim) < len(full):
++            use = trim
++        return 'Permutation(%s)' % use
+ 
+     def list(self, size=None):
+         """Return the permutation as an explicit list, possibly
+@@ -1365,11 +1358,11 @@ def __pow__(self, n):
+ 
+         >>> from sympy.combinatorics.permutations import Permutation
+         >>> Permutation.print_cyclic = False
+-        >>> p = Permutation([2,0,3,1])
++        >>> p = Permutation([3, 1, 5, 2, 4, 0])
+         >>> p.order()
+         4
+-        >>> p**4
+-        Permutation([0, 1, 2, 3])
++        >>> (p**(p.order()))
++        Permutation([], size=6)
+         """
+         if isinstance(n, Permutation):
+             raise NotImplementedError(
+@@ -1806,7 +1799,7 @@ def cardinality(self):
+         Examples
+         ========
+ 
+-        >>> from sympy.combinatorics.permutations import Permutation
++        >>> from sympy.combinatorics import Permutation
+         >>> p = Permutation([0, 1, 2, 3])
+         >>> p.cardinality
+         24
+@@ -2832,43 +2825,5 @@ def unrank_lex(cls, size, rank):
+             psize = new_psize
+         return cls._af_new(perm_array)
+ 
+-    # global flag to control how permutations are printed
+-    # when True, Permutation([0, 2, 1, 3]) -> Cycle(1, 2)
+-    # when False, Permutation([0, 2, 1, 3]) -> Permutation([0, 2, 1])
+-    print_cyclic = True
+-
+-
+-def _merge(arr, temp, left, mid, right):
+-    """
+-    Merges two sorted arrays and calculates the inversion count.
+-
+-    Helper function for calculating inversions. This method is
+-    for internal use only.
+-    """
+-    i = k = left
+-    j = mid
+-    inv_count = 0
+-    while i < mid and j <= right:
+-        if arr[i] < arr[j]:
+-            temp[k] = arr[i]
+-            k += 1
+-            i += 1
+-        else:
+-            temp[k] = arr[j]
+-            k += 1
+-            j += 1
+-            inv_count += (mid -i)
+-    while i < mid:
+-        temp[k] = arr[i]
+-        k += 1
+-        i += 1
+-    if j <= right:
+-        k += right - j + 1
+-        j += right - j + 1
+-        arr[left:k + 1] = temp[left:k + 1]
+-    else:
+-        arr[left:right + 1] = temp[left:right + 1]
+-    return inv_count
+-
+ Perm = Permutation
+ _af_new = Perm._af_new

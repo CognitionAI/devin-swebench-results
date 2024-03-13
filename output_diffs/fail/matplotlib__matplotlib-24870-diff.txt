@@ -1,0 +1,16 @@
+diff --git a/lib/matplotlib/axes/_axes.py b/lib/matplotlib/axes/_axes.py
+index 58d9591266..6da821f0aa 100644
+--- a/lib/matplotlib/axes/_axes.py
++++ b/lib/matplotlib/axes/_axes.py
+@@ -6455,6 +6455,11 @@ default: :rc:`scatter.edgecolors`
+             contour([X, Y,] Z, [levels], **kwargs)
+         %(contour_doc)s
+         """
++        # Check if Z is a boolean array and set default levels to [0.5] if not already specified
++        if 'Z' in kwargs and np.issubdtype(kwargs['Z'].dtype, np.bool_):
++            if 'levels' not in kwargs:
++                kwargs['levels'] = [0.5]
++
+         kwargs['filled'] = False
+         contours = mcontour.QuadContourSet(self, *args, **kwargs)
+         self._request_autoscale_view()

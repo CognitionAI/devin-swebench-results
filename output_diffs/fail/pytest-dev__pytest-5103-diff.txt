@@ -1,0 +1,39 @@
+diff --git a/src/_pytest/assertion/rewrite.py b/src/_pytest/assertion/rewrite.py
+index 2903b8995..2b9897a96 100644
+--- a/src/_pytest/assertion/rewrite.py
++++ b/src/_pytest/assertion/rewrite.py
+@@ -984,6 +984,34 @@ warn_explicit(
+             else:  # **args have `arg` keywords with an .arg of None
+                 arg_expls.append("**" + expl)
+ 
++        # Check if the call is to `all` or `any` and rewrite accordingly
++        if func_expl in ('all', 'any'):
++            # Unroll the iterable in the call arguments
++            iter_arg = new_args[0] if new_args else None
++            if iter_arg and isinstance(iter_arg, ast.GeneratorExp):
++                # Create a list to hold the unrolled assertions
++                unrolled_asserts = []
++                # Get the target and iter from the generator expression
++                target = iter_arg.elt
++                iter = iter_arg.generators[0].iter
++                # Create a loop to unroll the generator expression
++                for_loop = ast.For(
++                    target=ast.Name(id='element', ctx=ast.Store()),
++                    iter=iter,
++                    body=[ast.Assert(
++                        test=target,
++                        msg=ast.Str(s='assertion failed')
++                    )],
++                    orelse=[]
++                )
++                # Add the unrolled loop to the list of asserts
++                unrolled_asserts.append(for_loop)
++                # Replace the original assert with the unrolled asserts
++                return unrolled_asserts
++            else:
++                # If the argument is not a generator expression, raise an error
++                raise NotImplementedError("Only generator expressions are supported for unrolling")
++
+         expl = "%s(%s)" % (func_expl, ", ".join(arg_expls))
+         new_call = ast.Call(new_func, new_args, new_kwargs)
+         res = self.assign(new_call)

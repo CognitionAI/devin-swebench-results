@@ -1,0 +1,18 @@
+diff --git a/lib/matplotlib/text.py b/lib/matplotlib/text.py
+index d4922fc517..d507cf601c 100644
+--- a/lib/matplotlib/text.py
++++ b/lib/matplotlib/text.py
+@@ -1852,6 +1852,13 @@ or callable, default: value of *xycoords*
+         # Must come last, as some kwargs may be propagated to arrow_patch.
+         Text.__init__(self, x, y, text, **kwargs)
+ 
++        # Copy xy parameter to avoid reference to mutable object
++        if isinstance(xy, np.ndarray):
++            self.xy = xy.copy()
++        else:
++            import copy
++            self.xy = copy.copy(xy)
++
+     @_api.rename_parameter("3.8", "event", "mouseevent")
+     def contains(self, mouseevent):
+         if self._different_canvas(mouseevent):

@@ -1,0 +1,25 @@
+diff --git a/astropy/utils/diff.py b/astropy/utils/diff.py
+index 1542030a9d..0149da643e 100644
+--- a/astropy/utils/diff.py
++++ b/astropy/utils/diff.py
+@@ -165,7 +165,16 @@ def where_not_allclose(a, b, rtol=1e-5, atol=1e-8):
+     if not np.all(np.isfinite(b)):
+         b = np.ma.fix_invalid(b).data
+ 
+-    if atol == 0.0 and rtol == 0.0:
+-        # Use a faster comparison for the most simple (and common) case
+-        return np.where(a != b)
+-    return np.where(np.abs(a - b) > (atol + rtol * np.abs(b)))
++    print("Comparing arrays with rtol:", rtol, "and atol:", atol)
++    print("Array a:", a)
++    print("Array b:", b)
++
++    # Symmetric comparison to handle relative tolerance correctly
++    not_close = np.logical_or(
++        np.abs(a - b) > (atol + rtol * np.abs(b)),
++        np.abs(b - a) > (atol + rtol * np.abs(a))
++    )
++
++    print("Comparison result:", not_close)
++
++    return np.where(not_close)

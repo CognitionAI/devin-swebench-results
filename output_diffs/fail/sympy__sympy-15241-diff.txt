@@ -1,0 +1,26 @@
+diff --git a/sympy/core/function.py b/sympy/core/function.py
+index 97099ce6d9..8a07decdaa 100644
+--- a/sympy/core/function.py
++++ b/sympy/core/function.py
+@@ -1344,8 +1344,11 @@ def _sort_variable_count(cls, varcounts):
+         sorted_vars = []
+         symbol_part = []
+         non_symbol_part = []
++        non_free_symbol_part = []
+         for (v, c) in varcounts:
+-            if not v.is_symbol:
++            if v.is_symbol and v not in self.expr.free_symbols:
++                non_free_symbol_part.append((v, c))
++            elif not v.is_symbol:
+                 if len(symbol_part) > 0:
+                     sorted_vars.extend(sorted(symbol_part,
+                                               key=lambda i: default_sort_key(i[0])))
+@@ -2179,7 +2182,7 @@ def expand(e, deep=True, modulus=None, power_base=True, power_exp=True,
+       functions or to use ``hint=False`` to this function to finely control
+       which hints are applied. Here are some examples::
+ 
+-        >>> from sympy import expand, expand_mul, expand_power_base
++        >>> from sympy import symbols, expand_mul, expand_power_base
+         >>> x, y, z = symbols('x,y,z', positive=True)
+ 
+         >>> expand(log(x*(y + z)))

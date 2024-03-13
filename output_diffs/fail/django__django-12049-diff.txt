@@ -1,0 +1,185 @@
+diff --git a/django/db/migrations/executor.py b/django/db/migrations/executor.py
+index 7b779819e9..9ff9fa6968 100644
+--- a/django/db/migrations/executor.py
++++ b/django/db/migrations/executor.py
+@@ -27,7 +27,10 @@ class MigrationExecutor:
+         if clean_start:
+             applied = {}
+         else:
+-            applied = dict(self.loader.applied_migrations)
++            if self.loader.applied_migrations is not None:
++                applied = {tuple(migration): True for migration in self.loader.applied_migrations}
++            else:
++                applied = {}
+         for target in targets:
+             # If the target is (app_label, None), that means unmigrate everything
+             if target[1] is None:
+@@ -70,10 +73,10 @@ class MigrationExecutor:
+         if with_applied_migrations:
+             # Create the forwards plan Django would follow on an empty database
+             full_plan = self.migration_plan(self.loader.graph.leaf_nodes(), clean_start=True)
+-            applied_migrations = {
+-                self.loader.graph.nodes[key] for key in self.loader.applied_migrations
+-                if key in self.loader.graph.nodes
+-            }
++            if self.loader.applied_migrations is not None:
++                applied_migrations = {self.loader.graph.nodes[key] for key in self.loader.applied_migrations if key in self.loader.graph.nodes}
++            else:
++                applied_migrations = set()
+             for migration, _ in full_plan:
+                 if migration in applied_migrations:
+                     migration.mutate_state(state, preserve=False)
+@@ -163,10 +166,10 @@ class MigrationExecutor:
+         # Holds all migration states prior to the migrations being unapplied
+         states = {}
+         state = self._create_project_state()
+-        applied_migrations = {
+-            self.loader.graph.nodes[key] for key in self.loader.applied_migrations
+-            if key in self.loader.graph.nodes
+-        }
++        if self.loader.applied_migrations is not None:
++            applied_migrations = {self.loader.graph.nodes[key] for key in self.loader.applied_migrations if key in self.loader.graph.nodes}
++        else:
++            applied_migrations = set()
+         if self.progress_callback:
+             self.progress_callback("render_start")
+         for migration, _ in full_plan:
+@@ -334,7 +337,10 @@ class MigrationExecutor:
+         # Make sure all create model and add field operations are done
+         for operation in migration.operations:
+             if isinstance(operation, migrations.CreateModel):
+-                model = apps.get_model(migration.app_label, operation.name)
++                # Ensure `state.apps` is ready before accessing `get_model`
++                if 'apps' not in state.__dict__:
++                    state.apps  # This will trigger the rendering of the apps registry if it hasn't been done yet
++                model = state.apps.get_model(migration.app_label, operation.name)
+                 if model._meta.swapped:
+                     # We have to fetch the model to test with from the
+                     # main app cache, as it's not a direct dependency.
+@@ -345,7 +351,10 @@ class MigrationExecutor:
+                     return False, project_state
+                 found_create_model_migration = True
+             elif isinstance(operation, migrations.AddField):
+-                model = apps.get_model(migration.app_label, operation.model_name)
++                # Ensure `state.apps` is ready before accessing `get_model`
++                if 'apps' not in state.__dict__:
++                    state.apps  # This will trigger the rendering of the apps registry if it hasn't been done yet
++                model = state.apps.get_model(migration.app_label, operation.model_name)
+                 if model._meta.swapped:
+                     # We have to fetch the model to test with from the
+                     # main app cache, as it's not a direct dependency.
+@@ -365,10 +374,10 @@ class MigrationExecutor:
+                         continue
+ 
+                 column_names = [
+-                    column.name for column in
++                    column.name.lower() for column in
+                     self.connection.introspection.get_table_description(self.connection.cursor(), table)
+                 ]
+-                if field.column not in column_names:
++                if field.column.lower() not in column_names:
+                     return False, project_state
+                 found_add_field_migration = True
+         # If we get this far and we found at least one CreateModel or AddField migration,
+diff --git a/tests/i18n/sampleproject/sampleproject/settings.py b/tests/i18n/sampleproject/sampleproject/settings.py
+index e69de29bb2..f8e029ddeb 100644
+--- a/tests/i18n/sampleproject/sampleproject/settings.py
++++ b/tests/i18n/sampleproject/sampleproject/settings.py
+@@ -0,0 +1,97 @@
++
++"""
++Django settings for sampleproject project.
++
++Generated by 'django-admin startproject' using Django 3.2.
++
++For more information on this file, see
++https://docs.djangoproject.com/en/3.2/topics/settings/
++
++For the full list of settings and their values, see
++https://docs.djangoproject.com/en/3.2/ref/settings/
++"""
++
++from pathlib import Path
++
++# Build paths inside the project like this: BASE_DIR / 'subdir'.
++BASE_DIR = Path(__file__).resolve().parent.parent
++
++# Quick-start development settings - unsuitable for production
++# See https://docs.djangoproject.com/en/3.2/howto/deployment/checklist/
++
++# SECURITY WARNING: keep the secret key used in production secret!
++SECRET_KEY = 'django-insecure-+@!v#u3b4!z$^*8^e!_2#t7#5fz)0z$3^*+q#n^@jz8^4#-@y2'
++
++# SECURITY WARNING: don't run with debug turned on in production!
++DEBUG = True
++
++ALLOWED_HOSTS = []
++
++# Application definition
++
++INSTALLED_APPS = [
++    # ...
++]
++
++MIDDLEWARE = [
++    # ...
++]
++
++ROOT_URLCONF = 'sampleproject.urls'
++
++TEMPLATES = [
++    {
++        'BACKEND': 'django.template.backends.django.DjangoTemplates',
++        'DIRS': [],
++        'APP_DIRS': True,
++        'OPTIONS': {
++            'context_processors': [
++                # ...
++            ],
++        },
++    },
++]
++
++WSGI_APPLICATION = 'sampleproject.wsgi.application'
++
++# Database
++# https://docs.djangoproject.com/en/3.2/ref/settings/#databases
++
++DATABASES = {
++    'default': {
++        # ...
++    }
++}
++
++# Password validation
++# https://docs.djangoproject.com/en/3.2/ref/settings/#auth-password-validators
++
++AUTH_PASSWORD_VALIDATORS = [
++    {
++        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
++    },
++    # ...
++]
++
++# Internationalization
++# https://docs.djangoproject.com/en/3.2/topics/i18n/
++
++LANGUAGE_CODE = 'en-us'
++
++TIME_ZONE = 'UTC'
++
++USE_I18N = True
++
++USE_L10N = True
++
++USE_TZ = True
++
++# Static files (CSS, JavaScript, Images)
++# https://docs.djangoproject.com/en/3.2/howto/static-files/
++
++STATIC_URL = '/static/'
++
++# Default primary key field type
++# https://docs.djangoproject.com/en/3.2/ref/settings/#default-auto-field
++
++DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

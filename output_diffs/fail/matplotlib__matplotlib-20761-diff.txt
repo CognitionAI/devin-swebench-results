@@ -1,0 +1,27 @@
+diff --git a/lib/matplotlib/figure.py b/lib/matplotlib/figure.py
+index e47d7c0836..889e6cb874 100644
+--- a/lib/matplotlib/figure.py
++++ b/lib/matplotlib/figure.py
+@@ -418,6 +418,13 @@ default: %(va)s
+         # docstring from _suplabels...
+         info = {'name': '_supxlabel', 'x0': 0.5, 'y0': 0.01,
+                 'ha': 'center', 'va': 'bottom', 'rotation': 0}
++        x = kwargs.pop('x', None)
++        if x is not None:
++            # Only update the position of the text, not the subfigure itself.
++            if self._supxlabel is not None:
++                self._supxlabel.set_x(x)
++            else:
++                kwargs['x'] = x
+         return self._suplabels(t, info, **kwargs)
+ 
+     @docstring.Substitution(x0=0.02, y0=0.5, name='supylabel', ha='left',
+@@ -2535,6 +2542,8 @@ class Figure(FigureBase):
+         a resampled image to fill the entire figure, you can define an
+         `~matplotlib.axes.Axes` with extent [0, 0, 1, 1].
+ 
++        Thanks to Fernando Perez for this function.
++
+         Examples
+         --------
+         ::

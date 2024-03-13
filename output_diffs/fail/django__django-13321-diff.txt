@@ -1,0 +1,20 @@
+diff --git a/django/contrib/sessions/backends/base.py b/django/contrib/sessions/backends/base.py
+index 187e14b1b7..12efac5159 100644
+--- a/django/contrib/sessions/backends/base.py
++++ b/django/contrib/sessions/backends/base.py
+@@ -275,9 +275,13 @@ class SessionBase:
+         except KeyError:
+             expiry = self.get('_session_expiry')
+ 
+-        if isinstance(expiry, datetime):
++        if isinstance(expiry, (int, float)):
++            expiry = float(expiry)
++        elif isinstance(expiry, datetime):
+             return expiry
+-        expiry = expiry or self.get_session_cookie_age()
++        else:
++            raise ValueError("Invalid expiry type: must be int, float, or datetime")
++
+         return modification + timedelta(seconds=expiry)
+ 
+     def set_expiry(self, value):

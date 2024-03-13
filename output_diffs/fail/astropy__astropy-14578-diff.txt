@@ -1,0 +1,123 @@
+diff --git a/astropy/io/fits/column.py b/astropy/io/fits/column.py
+index 47f6e39fe8..cce13bcfcb 100644
+--- a/astropy/io/fits/column.py
++++ b/astropy/io/fits/column.py
+@@ -287,6 +287,34 @@ class _BaseColumnFormat(str):
+         """
+         return cls.from_recformat(format.recformat)
+ 
++    @lazyproperty
++    def dtype(self):
++        """
++        The Numpy dtype object created from the format's associated recformat.
++        """
++        return np.dtype(self.recformat)
++
++    @classmethod
++    def from_recformat(cls, recformat):
++        """Creates a column format from a Numpy record dtype format."""
++        return cls(_convert_format(recformat, reverse=True))
++
++    @lazyproperty
++    def recformat(self):
++        """Returns the equivalent Numpy record format string."""
++        return _convert_format(self)
++
++    @lazyproperty
++    def canonical(self):
++        """
++        Returns a 'canonical' string representation of this format.
++
++        This is in the proper form of rTa where T is the single character data
++        type code, a is the optional part, and r is the repeat.  If repeat == 1
++        (the default) it is left out of this representation.
++        """
++        raise NotImplementedError("Subclasses should implement this property.")
++
+ 
+ class _ColumnFormat(_BaseColumnFormat):
+     """
+@@ -1287,7 +1315,7 @@ class Column(NotifierMixin):
+         return valid, invalid
+ 
+     @classmethod
+-    def _determine_formats(cls, format, start, dim, ascii):
++    def _determine_formats(cls, format, start, dim, ascii, column_data=None):
+         """
+         Given a format string and whether or not the Column is for an
+         ASCII table (ascii=None means unspecified, but lean toward binary table
+@@ -1312,9 +1340,9 @@ class Column(NotifierMixin):
+             # best to guess what the user intended.
+             format, recformat = cls._guess_format(format, start, dim)
+         elif not ascii and not isinstance(format, _BaseColumnFormat):
+-            format, recformat = cls._convert_format(format, _ColumnFormat)
++            format, recformat = cls._convert_format(format, _ColumnFormat, column_data=column_data)
+         elif ascii and not isinstance(format, _AsciiColumnFormat):
+-            format, recformat = cls._convert_format(format, _AsciiColumnFormat)
++            format, recformat = cls._convert_format(format, _AsciiColumnFormat, column_data=column_data)
+         else:
+             # The format is already acceptable and unambiguous
+             recformat = format.recformat
+@@ -1350,7 +1378,7 @@ class Column(NotifierMixin):
+             guess_format = _ColumnFormat
+ 
+         try:
+-            format, recformat = cls._convert_format(format, guess_format)
++            format, recformat = cls._convert_format(format, guess_format, column_data=column_data)
+         except VerifyError:
+             # For whatever reason our guess was wrong (for example if we got
+             # just 'F' that's not a valid binary format, but it an ASCII format
+@@ -1360,7 +1388,7 @@ class Column(NotifierMixin):
+             )
+             # If this fails too we're out of options--it is truly an invalid
+             # format, or at least not supported
+-            format, recformat = cls._convert_format(format, guess_format)
++            format, recformat = cls._convert_format(format, guess_format, column_data=column_data)
+ 
+         return format, recformat
+ 
+@@ -2440,7 +2468,7 @@ def _convert_fits2record(format):
+     return output_format
+ 
+ 
+-def _convert_record2fits(format):
++def _convert_record2fits(format, column_data):  # Added column_data parameter
+     """
+     Convert record format spec to FITS format spec.
+     """
+@@ -2479,6 +2507,13 @@ def _convert_record2fits(format):
+         else:
+             repeat = ""
+         output_format = repeat + NUMPY2FITS[recformat]
++    elif dtype.char == 'O':
++        try:
++            # Attempt to convert object columns to strings
++            output_format = 'A' + str(max(len(str(item)) for item in column_data))
++        except Exception as e:
++            raise ValueError(f"Cannot convert object column to FITS format: {e}. "
++                             "Consider converting the column to a string or another supported data type before writing to FITS.")
+     else:
+         raise ValueError(f"Illegal format `{format}`.")
+ 
+@@ -2509,18 +2544,18 @@ def _dtype_to_recformat(dtype):
+     return recformat, kind, dtype
+ 
+ 
+-def _convert_format(format, reverse=False):
++def _convert_format(format, reverse=False, column_data=None):
+     """
+     Convert FITS format spec to record format spec.  Do the opposite if
+     reverse=True.
+     """
+     if reverse:
+-        return _convert_record2fits(format)
++        return _convert_record2fits(format, column_data)
+     else:
+         return _convert_fits2record(format)
+ 
+ 
+-def _convert_ascii_format(format, reverse=False):
++def _convert_ascii_format(format, reverse=False, column_data=None):
+     """Convert ASCII table format spec to record format spec."""
+     if reverse:
+         recformat, kind, dtype = _dtype_to_recformat(format)

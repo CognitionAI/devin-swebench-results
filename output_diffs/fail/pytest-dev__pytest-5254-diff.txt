@@ -1,0 +1,15 @@
+diff --git a/src/_pytest/python.py b/src/_pytest/python.py
+index 06d853f78..e5a62cc92 100644
+--- a/src/_pytest/python.py
++++ b/src/_pytest/python.py
+@@ -906,6 +906,10 @@ class CallSpec2(object):
+             getattr(self, valtype_for_arg)[arg] = val
+             self.indices[arg] = param_index
+             self._arg2scopenum[arg] = scopenum
++        print("DEBUG: setmulti2 method called")
++        print(f"DEBUG: argnames: {argnames}")
++        print(f"DEBUG: valset: {valset}")
++        print(f"DEBUG: scopenum: {scopenum}")
+         self._idlist.append(id)
+         self.marks.extend(normalize_mark_list(marks))
+ 

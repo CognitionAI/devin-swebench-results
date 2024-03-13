@@ -1,0 +1,47 @@
+diff --git a/xarray/core/dataset.py b/xarray/core/dataset.py
+index 223e21a8..56d833eb 100644
+--- a/xarray/core/dataset.py
++++ b/xarray/core/dataset.py
+@@ -1877,6 +1877,8 @@ class Dataset(DataWithCoords, DatasetArithmetic, Mapping):
+     def _repr_html_(self):
+         if OPTIONS["display_style"] == "text":
+             return f"<pre>{escape(repr(self))}</pre>"
++        if OPTIONS["html_collapse"]:
++            return f"<details><summary>Dataset</summary>{formatting_html.dataset_repr(self)}</details>"
+         return formatting_html.dataset_repr(self)
+ 
+     def info(self, buf=None) -> None:
+diff --git a/xarray/core/options.py b/xarray/core/options.py
+index 12969890..16d3be66 100644
+--- a/xarray/core/options.py
++++ b/xarray/core/options.py
+@@ -23,10 +23,11 @@ OPTIONS = {
+     FILE_CACHE_MAXSIZE: 128,
+     KEEP_ATTRS: "default",
+     WARN_FOR_UNCLOSED_FILES: False,
++    HTML_COLLAPSE: False,
+ }
+ 
+ _JOIN_OPTIONS = frozenset(["inner", "outer", "left", "right", "exact"])
+-_DISPLAY_OPTIONS = frozenset(["text", "html"])
++_DISPLAY_OPTIONS = frozenset(["text", "html", HTML_COLLAPSE])
+ 
+ 
+ def _positive_integer(value):
+@@ -42,6 +43,7 @@ _VALIDATORS = {
+     FILE_CACHE_MAXSIZE: _positive_integer,
+     KEEP_ATTRS: lambda choice: choice in [True, False, "default"],
+     WARN_FOR_UNCLOSED_FILES: lambda value: isinstance(value, bool),
++    HTML_COLLAPSE: lambda value: isinstance(value, bool),
+ }
+ 
+ 
+@@ -108,6 +110,8 @@ class set_options:
+       Default: ``'default'``.
+     - ``display_style``: display style to use in jupyter for xarray objects.
+       Default: ``'text'``. Other options are ``'html'``.
++    - ``html_collapse``: whether to collapse the HTML display of xarray objects.
++      Default: ``False``.
+ 
+ 
+     You can use ``set_options`` either as a context manager:

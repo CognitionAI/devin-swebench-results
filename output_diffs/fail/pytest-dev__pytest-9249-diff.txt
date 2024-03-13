@@ -1,0 +1,58 @@
+diff --git a/src/_pytest/python.py b/src/_pytest/python.py
+index 8acef2539..dd4ff1a5a 100644
+--- a/src/_pytest/python.py
++++ b/src/_pytest/python.py
+@@ -4,6 +4,7 @@ import fnmatch
+ import inspect
+ import itertools
+ import os
++import re
+ import sys
+ import types
+ import warnings
+@@ -141,7 +142,14 @@ def pytest_cmdline_main(config: Config) -> Optional[Union[int, ExitCode]]:
+ 
+ def pytest_generate_tests(metafunc: "Metafunc") -> None:
+     for marker in metafunc.definition.iter_markers(name="parametrize"):
+-        metafunc.parametrize(*marker.args, **marker.kwargs, _param_mark=marker)
++        if marker.kwargs.get('ids'):
++            original_ids = marker.kwargs['ids']
++            if isinstance(original_ids, Iterable) and not isinstance(original_ids, str):
++                sanitized_ids = [sanitize_test_id(str(id)) for id in original_ids]
++                new_kwargs = dict(marker.kwargs, ids=sanitized_ids)
++                metafunc.parametrize(*marker.args, **new_kwargs, _param_mark=marker)
++        else:
++            metafunc.parametrize(*marker.args, **marker.kwargs, _param_mark=marker)
+ 
+ 
+ def pytest_configure(config: Config) -> None:
+@@ -1172,7 +1180,9 @@ class Metafunc:
+         else:
+             idfn = None
+             ids_ = self._validate_ids(ids, parameters, self.function.__name__)
+-        return idmaker(argnames, parameters, idfn, ids_, self.config, nodeid=nodeid)
++        resolved_ids = idmaker(argnames, parameters, idfn, ids_, self.config, nodeid=nodeid)
++        sanitized_ids = [sanitize_test_id(id_) for id_ in resolved_ids]
++        return sanitized_ids
+ 
+     def _validate_ids(
+         self,
+@@ -1425,8 +1435,17 @@ def idmaker(
+                 resolved_ids[index] = f"{test_id}{test_id_suffixes[test_id]}"
+                 test_id_suffixes[test_id] += 1
+ 
+-    return resolved_ids
++    # Sanitize test IDs
++    sanitized_ids = [sanitize_test_id(id) for id in resolved_ids]
++
++    return sanitized_ids
+ 
++def sanitize_test_id(test_id: str) -> str:
++    # Replace slashes with underscores
++    sanitized_id = test_id.replace("/", "_")
++    # Replace square brackets with colons
++    sanitized_id = sanitized_id.replace("[", ":").replace("]", ":")
++    return sanitized_id
+ 
+ def show_fixtures_per_test(config):
+     from _pytest.main import wrap_session

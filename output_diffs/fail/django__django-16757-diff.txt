@@ -1,0 +1,23 @@
+diff --git a/django/contrib/admin/checks.py b/django/contrib/admin/checks.py
+index 27537d9614..3ef341b991 100644
+--- a/django/contrib/admin/checks.py
++++ b/django/contrib/admin/checks.py
+@@ -924,6 +924,18 @@ class ModelAdminChecks(BaseModelAdminChecks):
+                     id="admin.E109",
+                 )
+             ]
++        # Check for reverse foreign keys
++        opts = obj.model._meta
++        related_objects = [f.get_accessor_name() for f in opts.related_objects]
++        many_to_many_fields = [f.get_accessor_name() for f in opts.many_to_many]
++        if item in related_objects or item in many_to_many_fields:
++            return [
++                checks.Error(
++                    "The value of '%s' must not be a reverse foreign key." % label,
++                    obj=obj.__class__,
++                    id="admin.E109",
++                )
++            ]
+         return []
+ 
+     def _check_list_display_links(self, obj):

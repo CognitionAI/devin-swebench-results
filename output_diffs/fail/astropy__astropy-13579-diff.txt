@@ -1,0 +1,25 @@
+diff --git a/astropy/wcs/wcsapi/wrappers/sliced_wcs.py b/astropy/wcs/wcsapi/wrappers/sliced_wcs.py
+index d7605b078c..a637cbebdd 100644
+--- a/astropy/wcs/wcsapi/wrappers/sliced_wcs.py
++++ b/astropy/wcs/wcsapi/wrappers/sliced_wcs.py
+@@ -254,12 +254,16 @@ class SlicedLowLevelWCS(BaseWCSWrapper):
+                 world_arrays_new.append(1.)
+ 
+         world_arrays_new = np.broadcast_arrays(*world_arrays_new)
++        print("Broadcasted world coordinates:", world_arrays_new)
+         pixel_arrays = list(self._wcs.world_to_pixel_values(*world_arrays_new))
+-
++        print("Pixel coordinates before slice adjustment:", pixel_arrays)
++        # Adjust pixel coordinates based on the slice's start value
+         for ipixel in range(self._wcs.pixel_n_dim):
+-            if isinstance(self._slices_pixel[ipixel], slice) and self._slices_pixel[ipixel].start is not None:
+-                pixel_arrays[ipixel] -= self._slices_pixel[ipixel].start
+-
++            if isinstance(self._slices_pixel[ipixel], slice):
++                start = self._slices_pixel[ipixel].start
++                if start is not None:
++                    pixel_arrays[ipixel] -= start
++        print("Pixel coordinates after slice adjustment:", pixel_arrays)
+         # Detect the case of a length 0 array
+         if isinstance(pixel_arrays, np.ndarray) and not pixel_arrays.shape:
+             return pixel_arrays

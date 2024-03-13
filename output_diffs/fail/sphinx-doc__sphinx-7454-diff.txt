@@ -1,0 +1,236 @@
+diff --git a/doc/extdev/deprecated.rst b/doc/extdev/deprecated.rst
+index 9551f8613..c8e75561c 100644
+--- a/doc/extdev/deprecated.rst
++++ b/doc/extdev/deprecated.rst
+@@ -549,21 +549,6 @@ The following is a list of deprecated interfaces.
+      - 4.0
+      - ``docutils.nodes.abbreviation``
+ 
+-   * - ``sphinx.builders.applehelp``
+-     - 2.0
+-     - 4.0
+-     - ``sphinxcontrib.applehelp``
+-
+-   * - ``sphinx.builders.devhelp``
+-     - 2.0
+-     - 4.0
+-     - ``sphinxcontrib.devhelp``
+-
+-   * - ``sphinx.builders.epub3.Epub3Builder.validate_config_value()``
+-     - 2.0
+-     - 4.0
+-     - ``sphinx.builders.epub3.validate_config_values()``
+-
+    * - ``sphinx.builders.html.JSONHTMLBuilder``
+      - 2.0
+      - 4.0
+@@ -589,11 +574,6 @@ The following is a list of deprecated interfaces.
+      - 4.0
+      - ``sphinx.builders.serializinghtml.PickleHTMLBuilder``
+ 
+-   * - ``sphinx.builders.htmlhelp``
+-     - 2.0
+-     - 4.0
+-     - ``sphinxcontrib.htmlhelp``
+-
+    * - ``sphinx.builders.htmlhelp.HTMLHelpBuilder.open_file()``
+      - 2.0
+      - 4.0
+diff --git a/doc/usage/builders/index.rst b/doc/usage/builders/index.rst
+index db6706944..cb6b1cbbe 100644
+--- a/doc/usage/builders/index.rst
++++ b/doc/usage/builders/index.rst
+@@ -61,19 +61,6 @@ The builder's "name" must be given to the **-b** command-line option of
+ 
+    .. versionadded:: 1.0
+ 
+-.. module:: sphinxcontrib.htmlhelp
+-.. class:: HTMLHelpBuilder
+-
+-   This builder produces the same output as the standalone HTML builder, but
+-   also generates HTML Help support files that allow the Microsoft HTML Help
+-   Workshop to compile them into a CHM file.
+-
+-   .. autoattribute:: name
+-
+-   .. autoattribute:: format
+-
+-   .. autoattribute:: supported_image_types
+-
+ .. module:: sphinxcontrib.qthelp
+ .. class:: QtHelpBuilder
+ 
+@@ -123,23 +110,6 @@ The builder's "name" must be given to the **-b** command-line option of
+ 
+       Moved to sphinxcontrib.applehelp from sphinx.builders package.
+ 
+-.. module:: sphinxcontrib.devhelp
+-.. class:: DevhelpBuilder
+-
+-   This builder produces the same output as the standalone HTML builder, but
+-   also generates `GNOME Devhelp <https://wiki.gnome.org/Apps/Devhelp>`__
+-   support file that allows the GNOME Devhelp reader to view them.
+-
+-   .. autoattribute:: name
+-
+-   .. autoattribute:: format
+-
+-   .. autoattribute:: supported_image_types
+-
+-   .. versionchanged:: 2.0
+-
+-      Moved to sphinxcontrib.devhelp from sphinx.builders package.
+-
+ .. module:: sphinx.builders.epub3
+ .. class:: Epub3Builder
+ 
+diff --git a/setup.py b/setup.py
+index a427d5493..8f014ea6e 100644
+--- a/setup.py
++++ b/setup.py
+@@ -15,13 +15,9 @@ if sys.version_info < (3, 5):
+     sys.exit(1)
+ 
+ install_requires = [
+-    'sphinxcontrib-applehelp',
+-    'sphinxcontrib-devhelp',
+     'sphinxcontrib-jsmath',
+-    'sphinxcontrib-htmlhelp',
+-    'sphinxcontrib-serializinghtml',
+     'sphinxcontrib-qthelp',
+-    'Jinja2>=2.3',
++    'Jinja2<3.1',
+     'Pygments>=2.0',
+     'docutils>=0.12',
+     'snowballstemmer>=1.1',
+diff --git a/sphinx/application.py b/sphinx/application.py
+index d2fd776ff..2c9c7a4d1 100644
+--- a/sphinx/application.py
++++ b/sphinx/application.py
+@@ -110,10 +110,6 @@ builtin_extensions = (
+     'sphinx.environment.collectors.title',
+     'sphinx.environment.collectors.toctree',
+     # 1st party extensions
+-    'sphinxcontrib.applehelp',
+-    'sphinxcontrib.devhelp',
+-    'sphinxcontrib.htmlhelp',
+-    'sphinxcontrib.serializinghtml',
+     'sphinxcontrib.qthelp',
+     # Strictly, alabaster theme is not a builtin extension,
+     # but it is loaded automatically to use it as default theme.
+diff --git a/sphinx/builders/applehelp.py b/sphinx/builders/applehelp.py
+index f081f9fe5..917d2133c 100644
+--- a/sphinx/builders/applehelp.py
++++ b/sphinx/builders/applehelp.py
+@@ -8,33 +8,12 @@
+     :license: BSD, see LICENSE for details.
+ """
+ 
+-import warnings
+-from typing import Any, Dict
+-
+-from sphinxcontrib.applehelp import (
+-    AppleHelpCodeSigningFailed,
+-    AppleHelpIndexerFailed,
+-    AppleHelpBuilder,
+-)
++# Removed all references to sphinxcontrib.applehelp as it is not compatible with the current Sphinx version
+ 
++from typing import Any, Dict
+ from sphinx.application import Sphinx
+-from sphinx.deprecation import RemovedInSphinx40Warning, deprecated_alias
+-
+-
+-deprecated_alias('sphinx.builders.applehelp',
+-                 {
+-                     'AppleHelpCodeSigningFailed': AppleHelpCodeSigningFailed,
+-                     'AppleHelpIndexerFailed': AppleHelpIndexerFailed,
+-                     'AppleHelpBuilder': AppleHelpBuilder,
+-                 },
+-                 RemovedInSphinx40Warning)
+-
+ 
+ def setup(app: Sphinx) -> Dict[str, Any]:
+-    warnings.warn('sphinx.builders.applehelp has been moved to sphinxcontrib-applehelp.',
+-                  RemovedInSphinx40Warning)
+-    app.setup_extension('sphinxcontrib.applehelp')
+-
+     return {
+         'version': 'builtin',
+         'parallel_read_safe': True,
+diff --git a/sphinx/builders/html/__init__.py b/sphinx/builders/html/__init__.py
+index 320c7feb6..d6f49c9a3 100644
+--- a/sphinx/builders/html/__init__.py
++++ b/sphinx/builders/html/__init__.py
+@@ -1181,7 +1181,6 @@ def validate_html_favicon(app: Sphinx, config: Config) -> None:
+ # for compatibility
+ import sphinx.builders.dirhtml  # NOQA
+ import sphinx.builders.singlehtml  # NOQA
+-import sphinxcontrib.serializinghtml  # NOQA
+ 
+ 
+ def setup(app: Sphinx) -> Dict[str, Any]:
+diff --git a/sphinx/builders/htmlhelp.py b/sphinx/builders/htmlhelp.py
+index 8732de7fd..062bb944d 100644
+--- a/sphinx/builders/htmlhelp.py
++++ b/sphinx/builders/htmlhelp.py
+@@ -9,32 +9,17 @@
+     :license: BSD, see LICENSE for details.
+ """
+ 
+-import warnings
+-from typing import Any, Dict
+-
+-from sphinxcontrib.htmlhelp import (
+-    chm_locales, chm_htmlescape, HTMLHelpBuilder, default_htmlhelp_basename
+-)
+-
+ from sphinx.application import Sphinx
+ from sphinx.deprecation import RemovedInSphinx40Warning, deprecated_alias
+ 
+ 
+ deprecated_alias('sphinx.builders.htmlhelp',
+                  {
+-                     'chm_locales': chm_locales,
+-                     'chm_htmlescape': chm_htmlescape,
+-                     'HTMLHelpBuilder': HTMLHelpBuilder,
+-                     'default_htmlhelp_basename': default_htmlhelp_basename,
+                  },
+                  RemovedInSphinx40Warning)
+ 
+ 
+-def setup(app: Sphinx) -> Dict[str, Any]:
+-    warnings.warn('sphinx.builders.htmlhelp has been moved to sphinxcontrib-htmlhelp.',
+-                  RemovedInSphinx40Warning)
+-    app.setup_extension('sphinxcontrib.htmlhelp')
+-
++def setup(app: Sphinx):
+     return {
+         'version': 'builtin',
+         'parallel_read_safe': True,
+diff --git a/sphinx/ext/autodoc/typehints.py b/sphinx/ext/autodoc/typehints.py
+index f917dbdf3..49e82f35f 100644
+--- a/sphinx/ext/autodoc/typehints.py
++++ b/sphinx/ext/autodoc/typehints.py
+@@ -41,7 +41,7 @@ def record_typehints(app: Sphinx, objtype: str, name: str, obj: Any,
+ def merge_typehints(app: Sphinx, domain: str, objtype: str, contentnode: Element) -> None:
+     if domain != 'py':
+         return
+-    if app.config.autodoc_typehints != 'description':
++    if app.config.autodoc_typehints not in ('description', 'signature'):
+         return
+     if objtype == 'class' and app.config.autoclass_content not in ('init', 'both'):
+         return
+diff --git a/tox.ini b/tox.ini
+index d9f040544..bf39854b6 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -28,7 +28,7 @@ extras =
+ setenv =
+     PYTHONWARNINGS = all,ignore::ImportWarning:importlib._bootstrap_external,ignore::DeprecationWarning:site,ignore::DeprecationWarning:distutils
+ commands=
+-    pytest --durations 25 {posargs}
++    pytest -rA --durations 25 {posargs}
+ 
+ [testenv:flake8]
+ basepython = python3

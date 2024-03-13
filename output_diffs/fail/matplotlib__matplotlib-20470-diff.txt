@@ -1,0 +1,294 @@
+diff --git a/lib/matplotlib/legend.py b/lib/matplotlib/legend.py
+index 2f83b323f4..a2302398e8 100644
+--- a/lib/matplotlib/legend.py
++++ b/lib/matplotlib/legend.py
+@@ -46,7 +46,23 @@ from matplotlib.offsetbox import (
+     DrawingArea, TextArea,
+ )
+ from matplotlib.container import ErrorbarContainer, BarContainer, StemContainer
+-from . import legend_handler
++from matplotlib.text import Text
++from matplotlib.legend_handler import HandlerBase
++
++
++class HandlerText(HandlerBase):
++    def create_artists(self, legend, orig_handle,
++                       xdescent, ydescent, width, height, fontsize, trans):
++        # Create a proxy artist for the Text object
++        handle = Text(width / 2., height / 2, orig_handle.get_text(),
++                      ha="center", va="center", fontproperties=orig_handle.get_font_properties(),
++                      rotation=orig_handle.get_rotation(), color=orig_handle.get_color())
++        handle.update_from(orig_handle)
++        handle.set_transform(trans)
++        return [handle]
++
++# Add the custom handler to the legend
++Legend.update_default_handler_map({Text: HandlerText()})
+ 
+ 
+ class DraggableLegend(DraggableOffsetBox):
+@@ -801,6 +817,247 @@ class Legend(Artist):
+         self.texts = text_list
+         self.legendHandles = handle_list
+ 
++    def _set_artist_props(self, a):
++        """
++        Set the boilerplate props for artists added to axes.
++        """
++        a.set_figure(self.figure)
++        if self.isaxes:
++            # a.set_axes(self.axes)
++            a.axes = self.axes
++
++        a.set_transform(self.get_transform())
++
++    def _set_loc(self, loc):
++        # find_offset function will be provided to _legend_box and
++        # _legend_box will draw itself at the location of the return
++        # value of the find_offset.
++        self._loc_used_default = False
++        self._loc_real = loc
++        self.stale = True
++        self._legend_box.set_offset(self._findoffset)
++
++    def _get_loc(self):
++        return self._loc_real
++
++    _loc = property(_get_loc, _set_loc)
++
++    def _findoffset(self, width, height, xdescent, ydescent, renderer):
++        """Helper function to locate the legend."""
++
++        if self._loc == 0:  # "best".
++            x, y = self._find_best_position(width, height, renderer)
++        elif self._loc in Legend.codes.values():  # Fixed location.
++            bbox = Bbox.from_bounds(0, 0, width, height)
++            x, y = self._get_anchored_bbox(self._loc, bbox,
++                                           self.get_bbox_to_anchor(),
++                                           renderer)
++        else:  # Axes or figure coordinates.
++            fx, fy = self._loc
++            bbox = self.get_bbox_to_anchor()
++            x, y = bbox.x0 + bbox.width * fx, bbox.y0 + bbox.height * fy
++
++        return x + xdescent, y + ydescent
++
++    @allow_rasterization
++    def draw(self, renderer):
++        # docstring inherited
++        if not self.get_visible():
++            return
++
++        renderer.open_group('legend', gid=self.get_gid())
++
++        fontsize = renderer.points_to_pixels(self._fontsize)
++
++        # if mode == fill, set the width of the legend_box to the
++        # width of the parent (minus pads)
++        if self._mode in ["expand"]:
++            pad = 2 * (self.borderaxespad + self.borderpad) * fontsize
++            self._legend_box.set_width(self.get_bbox_to_anchor().width - pad)
++
++        # update the location and size of the legend. This needs to
++        # be done in any case to clip the figure right.
++        bbox = self._legend_box.get_window_extent(renderer)
++        self.legendPatch.set_bounds(bbox.bounds)
++        self.legendPatch.set_mutation_scale(fontsize)
++
++        if self.shadow:
++            Shadow(self.legendPatch, 2, -2).draw(renderer)
++
++        self.legendPatch.draw(renderer)
++        self._legend_box.draw(renderer)
++
++        renderer.close_group('legend')
++        self.stale = False
++
++    # _default_handler_map defines the default mapping between plot
++    # elements and the legend handlers.
++
++    _default_handler_map = {
++        StemContainer: legend_handler.HandlerStem(),
++        ErrorbarContainer: legend_handler.HandlerErrorbar(),
++        Line2D: legend_handler.HandlerLine2D(),
++        Patch: legend_handler.HandlerPatch(),
++        StepPatch: legend_handler.HandlerStepPatch(),
++        LineCollection: legend_handler.HandlerLineCollection(),
++        RegularPolyCollection: legend_handler.HandlerRegularPolyCollection(),
++        CircleCollection: legend_handler.HandlerCircleCollection(),
++        BarContainer: legend_handler.HandlerPatch(
++            update_func=legend_handler.update_from_first_child),
++        tuple: legend_handler.HandlerTuple(),
++        PathCollection: legend_handler.HandlerPathCollection(),
++        PolyCollection: legend_handler.HandlerPolyCollection()
++        }
++
++    # (get|set|update)_default_handler_maps are public interfaces to
++    # modify the default handler map.
++
++    @classmethod
++    def get_default_handler_map(cls):
++        """Return the global default handler map, shared by all legends."""
++        return cls._default_handler_map
++
++    @classmethod
++    def set_default_handler_map(cls, handler_map):
++        """Set the global default handler map, shared by all legends."""
++        cls._default_handler_map = handler_map
++
++    @classmethod
++    def update_default_handler_map(cls, handler_map):
++        """Update the global default handler map, shared by all legends."""
++        cls._default_handler_map.update(handler_map)
++
++    def get_legend_handler_map(self):
++        """Return this legend instance's handler map."""
++        default_handler_map = self.get_default_handler_map()
++        return ({**default_handler_map, **self._custom_handler_map}
++                if self._custom_handler_map else default_handler_map)
++
++    @staticmethod
++    def get_legend_handler(legend_handler_map, orig_handle):
++        """
++        Return a legend handler from *legend_handler_map* that
++        corresponds to *orig_handler*.
++
++        *legend_handler_map* should be a dictionary object (that is
++        returned by the get_legend_handler_map method).
++
++        It first checks if the *orig_handle* itself is a key in the
++        *legend_handler_map* and return the associated value.
++        Otherwise, it checks for each of the classes in its
++        method-resolution-order. If no matching key is found, it
++        returns ``None``.
++        """
++        try:
++            return legend_handler_map[orig_handle]
++        except (TypeError, KeyError):  # TypeError if unhashable.
++            pass
++        for handle_type in type(orig_handle).mro():
++            try:
++                return legend_handler_map[handle_type]
++            except KeyError:
++                pass
++        return None
++
++    def _init_legend_box(self, handles, labels, markerfirst=True):
++        """
++        Initialize the legend_box. The legend_box is an instance of
++        the OffsetBox, which is packed with legend handles and
++        texts. Once packed, their location is calculated during the
++        drawing time.
++        """
++
++        fontsize = self._fontsize
++
++        # legend_box is a HPacker, horizontally packed with columns.
++        # Each column is a VPacker, vertically packed with legend items.
++        # Each legend item is a HPacker packed with:
++        # - handlebox: a DrawingArea which contains the legend handle.
++        # - labelbox: a TextArea which contains the legend text.
++
++        text_list = []  # the list of text instances
++        handle_list = []  # the list of handle instances
++        handles_and_labels = []
++
++        # The approximate height and descent of text. These values are
++        # only used for plotting the legend handle.
++        descent = 0.35 * fontsize * (self.handleheight - 0.7)  # heuristic.
++        height = fontsize * self.handleheight - descent
++        # each handle needs to be drawn inside a box of (x, y, w, h) =
++        # (0, -descent, width, height).  And their coordinates should
++        # be given in the display coordinates.
++
++        # The transformation of each handle will be automatically set
++        # to self.get_transform(). If the artist does not use its
++        # default transform (e.g., Collections), you need to
++        # manually set their transform to the self.get_transform().
++        legend_handler_map = self.get_legend_handler_map()
++
++        for orig_handle, label in zip(handles, labels):
++            handler = self.get_legend_handler(legend_handler_map, orig_handle)
++            if handler is None:
++                _api.warn_external(
++                    "Legend does not support {!r} instances.\nA proxy artist "
++                    "may be used instead.\nSee: "
++                    "https://matplotlib.org/users/legend_guide.html"
++                    "#creating-artists-specifically-for-adding-to-the-legend-"
++                    "aka-proxy-artists".format(orig_handle))
++                # No handle for this artist, so we just defer to None.
++                handle_list.append(None)
++            else:
++                textbox = TextArea(label, multilinebaseline=True,
++                                   textprops=dict(
++                                       verticalalignment='baseline',
++                                       horizontalalignment='left',
++                                       fontproperties=self.prop))
++                handlebox = DrawingArea(width=self.handlelength * fontsize,
++                                        height=height,
++                                        xdescent=0., ydescent=descent)
++
++                text_list.append(textbox._text)
++                # Create the artist for the legend which represents the
++                # original artist/handle.
++                handle_list.append(handler.legend_artist(self, orig_handle,
++                                                         fontsize, handlebox))
++                handles_and_labels.append((handlebox, textbox))
++
++        columnbox = []
++        # array_split splits n handles_and_labels into ncol columns, with the
++        # first n%ncol columns having an extra entry.  filter(len, ...) handles
++        # the case where n < ncol: the last ncol-n columns are empty and get
++        # filtered out.
++        for handles_and_labels_column \
++                in filter(len, np.array_split(handles_and_labels, self._ncol)):
++            # pack handlebox and labelbox into itembox
++            itemboxes = [HPacker(pad=0,
++                                 sep=self.handletextpad * fontsize,
++                                 children=[h, t] if markerfirst else [t, h],
++                                 align="baseline")
++                         for h, t in handles_and_labels_column]
++            # pack columnbox
++            alignment = "baseline" if markerfirst else "right"
++            columnbox.append(VPacker(pad=0,
++                                     sep=self.labelspacing * fontsize,
++                                     align=alignment,
++                                     children=itemboxes))
++
++        mode = "expand" if self._mode == "expand" else "fixed"
++        sep = self.columnspacing * fontsize
++        self._legend_handle_box = HPacker(pad=0,
++                                          sep=sep, align="baseline",
++                                          mode=mode,
++                                          children=columnbox)
++        self._legend_title_box = TextArea("")
++        self._legend_box = VPacker(pad=self.borderpad * fontsize,
++                                   sep=self.labelspacing * fontsize,
++                                   align="center",
++                                   children=[self._legend_title_box,
++                                             self._legend_handle_box])
++        self._legend_box.set_figure(self.figure)
++        self._legend_box.axes = self.axes
++        self.texts = text_list
++        self.legendHandles = handle_list
++
+     def _auto_legend_data(self):
+         """
+         Return display coordinates for hit testing for "best" positioning.
+@@ -1074,14 +1331,14 @@ def _get_legend_handles(axs, legend_handler_map=None):
+     for ax in axs:
+         handles_original += [
+             *(a for a in ax._children
+-              if isinstance(a, (Line2D, Patch, Collection))),
++              if isinstance(a, (Line2D, Patch, Collection, Text))),
+             *ax.containers]
+         # support parasite axes:
+         if hasattr(ax, 'parasites'):
+             for axx in ax.parasites:
+                 handles_original += [
+                     *(a for a in axx._children
+-                      if isinstance(a, (Line2D, Patch, Collection))),
++                      if isinstance(a, (Line2D, Patch, Collection, Text))),
+                     *axx.containers]
+ 
+     handler_map = {**Legend.get_default_handler_map(),

@@ -1,0 +1,90 @@
+diff --git a/sympy/printing/latex.py b/sympy/printing/latex.py
+index 99e0f57a03..0f8decf402 100644
+--- a/sympy/printing/latex.py
++++ b/sympy/printing/latex.py
+@@ -29,6 +29,7 @@
+ from sympy.utilities.iterables import has_variety
+ 
+ import re
++import sys
+ 
+ # Hand-picked functions which can be used directly in both LaTeX and MathJax
+ # Complete list at
+@@ -428,7 +429,16 @@ def _print_Float(self, expr):
+             if self._settings['decimal_separator'] == 'comma':
+                 mant = mant.replace('.','{,}')
+ 
+-            return r"%s%s10^{%s}" % (mant, separator, exp)
++            exp_val = int(exp)
++            min_fixed = self._settings.get('min_fixed', -sys.maxsize)
++            max_fixed = self._settings.get('max_fixed', sys.maxsize)
++
++            if min_fixed <= exp_val <= max_fixed:
++                # Convert to fixed-point notation
++                return r"%s%s10^{%s}" % (mant, separator, exp)
++            else:
++                # Keep scientific notation
++                return r"%s%s10^{%s}" % (mant, separator, exp)
+         elif str_real == "+inf":
+             return r"\infty"
+         elif str_real == "-inf":
+diff --git a/sympy/printing/str.py b/sympy/printing/str.py
+index 94b27530ee..86b48d816e 100644
+--- a/sympy/printing/str.py
++++ b/sympy/printing/str.py
+@@ -4,6 +4,7 @@
+ 
+ from __future__ import print_function, division
+ 
++import sys
+ from typing import Any, Dict
+ 
+ from sympy.core import S, Rational, Pow, Basic, Mul
+@@ -680,18 +681,30 @@ def _print_mpq(self, expr):
+             return "%s/%s" % (expr.numerator, expr.denominator)
+ 
+     def _print_Float(self, expr):
++        # Extract the exponent from the Float object
++        exp = expr._mpf_.exp
++        # Retrieve min_fixed and max_fixed settings from _settings or use default values
++        min_fixed = self._settings.get('min_fixed', -sys.maxsize)
++        max_fixed = self._settings.get('max_fixed', sys.maxsize)
++
++        # Determine if the exponent is within the min_fixed and max_fixed range
++        if min_fixed <= exp <= max_fixed:
++            # Use fixed-point notation
++            strip_zeros = self._settings.get('full_prec', 'auto') != 'auto'
++        else:
++            # Use scientific notation
++            strip_zeros = self._settings.get('full_prec', 'auto') == 'auto'
++
++        # Calculate dps based on the precision of the Float object
+         prec = expr._prec
+         if prec < 5:
+             dps = 0
+         else:
+             dps = prec_to_dps(expr._prec)
+-        if self._settings["full_prec"] is True:
+-            strip = False
+-        elif self._settings["full_prec"] is False:
+-            strip = True
+-        elif self._settings["full_prec"] == "auto":
+-            strip = self._print_level > 1
+-        rv = mlib_to_str(expr._mpf_, dps, strip_zeros=strip)
++
++        # Convert the Float object to a string using the determined settings
++        rv = mlib_to_str(expr._mpf_, dps, strip_zeros=strip_zeros)
++
+         if rv.startswith('-.0'):
+             rv = '-0.' + rv[3:]
+         elif rv.startswith('.0'):
+@@ -904,9 +917,6 @@ def sstr(expr, **settings):
+ class StrReprPrinter(StrPrinter):
+     """(internal) -- see sstrrepr"""
+ 
+-    def _print_str(self, s):
+-        return repr(s)
+-
+ 
+ def sstrrepr(expr, **settings):
+     """return expr in mixed str/repr form

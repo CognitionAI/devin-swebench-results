@@ -1,0 +1,37 @@
+diff --git a/django/db/models/deletion.py b/django/db/models/deletion.py
+index 2cb3c88444..a2869380a1 100644
+--- a/django/db/models/deletion.py
++++ b/django/db/models/deletion.py
+@@ -65,7 +65,13 @@ def SET(value):
+ 
+ 
+ def SET_NULL(collector, field, sub_objs, using):
+-    collector.add_field_update(field, None, sub_objs)
++    # Check if the field is a ForeignKey and has a related parent id
++    if hasattr(field, 'remote_field') and hasattr(field.remote_field, 'parent_link') and field.remote_field.parent_link:
++        # Construct an UPDATE query using the parent ID
++        parent_id = field.remote_field.model._meta.pk.name
++        collector.add_query_update(field.model, {field.name: None}, {parent_id: sub_objs[0].pk})
++    else:
++        collector.add_field_update(field, None, sub_objs)
+ 
+ 
+ def SET_DEFAULT(collector, field, sub_objs, using):
+@@ -150,6 +156,17 @@ class Collector:
+         model = objs[0].__class__
+         self.field_updates[model][field, value].update(objs)
+ 
++    def add_query_update(self, model, field_value_dict, condition_dict):
++        """
++        Schedule an SQL UPDATE query. 'model' is the Django model class for which
++        the update will be executed. 'field_value_dict' is a dictionary of field
++        names and values to be updated. 'condition_dict' is a dictionary of field
++        names and values used to build the WHERE clause.
++        """
++        # Construct the SQL UPDATE query
++        query = sql.UpdateQuery(model)
++        query.update_batch(condition_dict.keys(), field_value_dict, self.using)
++
+     def add_restricted_objects(self, field, objs):
+         if objs:
+             model = objs[0].__class__

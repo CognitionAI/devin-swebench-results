@@ -1,0 +1,88 @@
+diff --git a/django/core/checks/templates.py b/django/core/checks/templates.py
+index 8c4b7c172b..1a6077d156 100644
+--- a/django/core/checks/templates.py
++++ b/django/core/checks/templates.py
+@@ -2,7 +2,7 @@ import copy
+ 
+ from django.conf import settings
+ 
+-from . import Error, Tags, register
++from . import Error, Tags, Warning, register
+ 
+ E001 = Error(
+     "You have 'APP_DIRS': True in your TEMPLATES but also specify 'loaders' "
+@@ -13,6 +13,12 @@ E002 = Error(
+     "'string_if_invalid' in TEMPLATES OPTIONS must be a string but got: {} ({}).",
+     id="templates.E002",
+ )
++W001 = Warning(
++    "The 'django.template.context_processors.request' context processor is "
++    "required in the TEMPLATES setting when using the admin. Ensure it is "
++    "defined in the 'context_processors' option of TEMPLATES['OPTIONS'].",
++    id='templates.W001',
++)
+ 
+ 
+ @register(Tags.templates)
+@@ -33,3 +39,12 @@ def check_string_if_invalid_is_string(app_configs, **kwargs):
+             error.msg = error.msg.format(string_if_invalid, type(string_if_invalid).__name__)
+             errors.append(error)
+     return errors
++
++@register(Tags.templates)
++def check_for_request_context_processor(app_configs, **kwargs):
++    errors = []
++    for conf in settings.TEMPLATES:
++        cps = conf.get('OPTIONS', {}).get('context_processors', [])
++        if 'django.template.context_processors.request' not in cps:
++            errors.append(W001)
++    return errors
+diff --git a/docs/ref/contrib/admin/index.txt b/docs/ref/contrib/admin/index.txt
+index 420dac182b..ccb88e1c12 100644
+--- a/docs/ref/contrib/admin/index.txt
++++ b/docs/ref/contrib/admin/index.txt
+@@ -39,6 +39,12 @@ If you're not using the default project template, here are the requirements:
+    the ``'context_processors'`` option of :setting:`OPTIONS
+    <TEMPLATES-OPTIONS>`.
+ 
++   .. note::
++
++       The ``django.template.context_processors.request`` context processor is
++       required for the admin to function correctly. Make sure to include it in
++       your ``'context_processors'`` if it's not already present.
++
+ #. If you've customized the :setting:`MIDDLEWARE` setting,
+    :class:`django.contrib.auth.middleware.AuthenticationMiddleware` and
+    :class:`django.contrib.messages.middleware.MessageMiddleware` must be
+diff --git a/docs/releases/3.2.txt b/docs/releases/3.2.txt
+index 9b485b9e28..248857d167 100644
+--- a/docs/releases/3.2.txt
++++ b/docs/releases/3.2.txt
+@@ -37,7 +37,7 @@ Minor features
+ :mod:`django.contrib.admin`
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 
+-* ...
++* The admin now requires the `django.template.context_processors.request` context processor. Since commit d24ba1be7a53a113d19e2860c03aff9922efec24, admin templates use the implied `request` variable normally added by this context processor. As Django templates silence errors, this requirement went unnoticed during testing and won't immediately break the templates, but certain expected rendering features won't work without it.
+ 
+ :mod:`django.contrib.admindocs`
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+@@ -130,7 +130,6 @@ File Uploads
+ 
+ * ...
+ 
+-
+ Forms
+ ~~~~~
+ 
+@@ -238,8 +237,8 @@ PostgreSQL 9.6 and higher.
+ Miscellaneous
+ -------------
+ 
+-* The undocumented ``SpatiaLiteOperations.proj4_version()`` method is renamed
+-  to ``proj_version()``.
++* The undocumented `SpatiaLiteOperations.proj4_version()` method is renamed
++  to `proj_version()`.
+ 
+ .. _deprecated-features-3.2:
+ 

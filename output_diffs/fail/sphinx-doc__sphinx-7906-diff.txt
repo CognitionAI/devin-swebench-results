@@ -1,0 +1,96 @@
+diff --git a/setup.py b/setup.py
+index a404f1fa5..250ef5b61 100644
+--- a/setup.py
++++ b/setup.py
+@@ -21,7 +21,7 @@ install_requires = [
+     'sphinxcontrib-htmlhelp',
+     'sphinxcontrib-serializinghtml',
+     'sphinxcontrib-qthelp',
+-    'Jinja2>=2.3',
++    'Jinja2<3.1',
+     'Pygments>=2.0',
+     'docutils>=0.12',
+     'snowballstemmer>=1.1',
+diff --git a/sphinx/cmd/build.py b/sphinx/cmd/build.py
+index c4cf11cc4..c5843e9f5 100644
+--- a/sphinx/cmd/build.py
++++ b/sphinx/cmd/build.py
+@@ -10,7 +10,6 @@
+ 
+ import argparse
+ import bdb
+-import locale
+ import multiprocessing
+ import os
+ import pdb
+@@ -20,7 +19,7 @@ from typing import Any, IO, List
+ 
+ from docutils.utils import SystemMessage
+ 
+-import sphinx.locale
++import locale
+ from sphinx import __display_version__, package_dir
+ from sphinx.application import Sphinx
+ from sphinx.errors import SphinxError
+@@ -29,7 +28,6 @@ from sphinx.util import Tee, format_exception_cut_frames, save_traceback
+ from sphinx.util.console import red, nocolor, color_terminal, terminal_safe  # type: ignore
+ from sphinx.util.docutils import docutils_namespace, patch_docutils
+ 
+-
+ def handle_exception(app: Sphinx, args: Any, exception: BaseException, stderr: IO = sys.stderr) -> None:  # NOQA
+     if isinstance(exception, bdb.BdbQuit):
+         return
+@@ -68,7 +66,10 @@ def handle_exception(app: Sphinx, args: Any, exception: BaseException, stderr: I
+                      'recursion limit of 1000 in conf.py with e.g.:'), file=stderr)
+             print('    import sys; sys.setrecursionlimit(1500)', file=stderr)
+         else:
+-            print(red(__('Exception occurred:')), file=stderr)
++            if isinstance(exception, SphinxError):
++                print(red('%s:' % exception.category), file=stderr)
++            else:
++                print(red(__('Exception occurred:')), file=stderr)
+             print(format_exception_cut_frames().rstrip(), file=stderr)
+             tbpath = save_traceback(app)
+             print(red(__('The full traceback has been saved in %s, if you '
+@@ -285,7 +286,8 @@ def build_main(argv: List[str] = sys.argv[1:]) -> int:
+ 
+ 
+ def main(argv: List[str] = sys.argv[1:]) -> int:
+-    sphinx.locale.setlocale(locale.LC_ALL, '')
++    locale.setlocale(locale.LC_ALL, '')
++    print(dir(sphinx.locale), file=sys.stderr)
+     sphinx.locale.init_console(os.path.join(package_dir, 'locale'), 'sphinx')
+ 
+     if argv[:1] == ['-M']:
+diff --git a/sphinx/domains/python.py b/sphinx/domains/python.py
+index 5ea8d5d3d..1ae4d59be 100644
+--- a/sphinx/domains/python.py
++++ b/sphinx/domains/python.py
+@@ -459,9 +459,11 @@ class PyObject(ObjectDescription):
+         domain = cast(PythonDomain, self.env.get_domain('py'))
+         domain.note_object(fullname, self.objtype, node_id, location=signode)
+ 
+-        indextext = self.get_index_text(modname, name_cls)
+-        if indextext:
+-            self.indexnode['entries'].append(('single', indextext, node_id, '', None))
++        noindex = 'noindex' in self.options
++        if not noindex:
++            indextext = self.get_index_text(modname, name_cls)
++            if indextext:
++                self.indexnode['entries'].append(('single', indextext, node_id, '', None))
+ 
+     def before_content(self) -> None:
+         """Handle object nesting before content
+diff --git a/tox.ini b/tox.ini
+index ccfd60f84..c5ac3713f 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -28,7 +28,7 @@ extras =
+ setenv =
+     PYTHONWARNINGS = all,ignore::ImportWarning:importlib._bootstrap_external,ignore::DeprecationWarning:site,ignore::DeprecationWarning:distutils
+ commands=
+-    pytest --durations 25 {posargs}
++    pytest -rA --durations 25 {posargs}
+ 
+ [testenv:flake8]
+ basepython = python3

@@ -1,0 +1,29 @@
+diff --git a/sympy/sets/fancysets.py b/sympy/sets/fancysets.py
+index b1af4372be..829909c75f 100644
+--- a/sympy/sets/fancysets.py
++++ b/sympy/sets/fancysets.py
+@@ -5,7 +5,7 @@
+ from sympy.core.expr import Expr
+ from sympy.core.function import Lambda
+ from sympy.core.logic import fuzzy_not, fuzzy_or, fuzzy_and
+-from sympy.core.numbers import oo
++from sympy.core.numbers import oo, Float
+ from sympy.core.relational import Eq
+ from sympy.core.singleton import Singleton, S
+ from sympy.core.symbol import Dummy, symbols, Symbol
+@@ -349,6 +349,15 @@ def __new__(cls, flambda, *sets):
+             elif is_empty == False:
+                 return FiniteSet(flambda.expr)
+ 
++        # Check if any of the sets are Floats
++        if any(isinstance(arg, Float) for s in sets for arg in s):
++            # Create a FiniteSet by applying flambda to each element of the sets
++            elements = []
++            for s in sets:
++                for elem in s:
++                    elements.append(flambda(elem))
++            return FiniteSet(*elements)
++
+         return Basic.__new__(cls, flambda, *sets)
+ 
+     lamda = property(lambda self: self.args[0])

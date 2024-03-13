@@ -1,0 +1,62 @@
+diff --git a/sphinx/config.py b/sphinx/config.py
+index 5f92479d3..11a91edd9 100644
+--- a/sphinx/config.py
++++ b/sphinx/config.py
+@@ -156,7 +156,7 @@ class Config:
+         self.extensions: List[str] = config.get('extensions', [])
+ 
+     @classmethod
+-    def read(cls, confdir: str, overrides: Dict = None, tags: Tags = None) -> "Config":
++    def read(cls, confdir: str, overrides: Dict = {}, tags: Tags = None) -> "Config":
+         """Create a Config object from configuration file."""
+         filename = path.join(confdir, CONFIG_FILENAME)
+         if not path.isfile(filename):
+@@ -180,7 +180,7 @@ class Config:
+                     return True
+                 else:
+                     return value
+-            elif type(defvalue) is bool or self.values[name][2] == [bool]:
++            elif isinstance(defvalue, bool) or self.values[name][2] == [bool]:
+                 if value == '0':
+                     # given falsy string from command line option
+                     return False
+@@ -416,6 +416,13 @@ def check_confval_types(app: "Sphinx", config: Config) -> None:
+     for confval in config:
+         default, rebuild, annotations = config.values[confval.name]
+ 
++        # Handle 'None' language as 'en'
++        if confval.name == 'language' and confval.value is None:
++            confval = ConfigValue(confval.name, 'en', confval.rebuild)
++            logger.warning(__("The 'language' configuration was 'None' and has been set to 'en'. "
++                              "Please update your 'conf.py' to explicitly set 'language = 'en''."),
++                           once=True)
++
+         if callable(default):
+             default = default(config)  # evaluate default value
+         if default is None and not annotations:
+@@ -432,9 +439,10 @@ def check_confval_types(app: "Sphinx", config: Config) -> None:
+                                           current=confval.value,
+                                           candidates=annotations.candidates), once=True)
+         else:
+-            if type(confval.value) is type(default):
++            # Replace direct type comparison with isinstance() checks
++            if isinstance(confval.value, type(default)):
+                 continue
+-            if type(confval.value) in annotations:
++            if any(isinstance(confval.value, annotation) for annotation in annotations):
+                 continue
+ 
+             common_bases = (set(type(confval.value).__bases__ + (type(confval.value),)) &
+diff --git a/tox.ini b/tox.ini
+index 105a02597..90ada0821 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -29,7 +29,7 @@ setenv =
+     PYTHONWARNINGS = all
+     PYTEST_ADDOPTS = {env:PYTEST_ADDOPTS:} --color yes
+ commands=
+-    python -X dev -X warn_default_encoding -m pytest --durations 25 {posargs}
++    python -X dev -X warn_default_encoding -m pytest -rA --durations 25 {posargs}
+ 
+ [testenv:du-latest]
+ commands =

@@ -1,0 +1,22 @@
+diff --git a/django/db/models/query.py b/django/db/models/query.py
+index e0eeccefa6..352b2c3609 100644
+--- a/django/db/models/query.py
++++ b/django/db/models/query.py
+@@ -1138,6 +1138,8 @@ class QuerySet:
+         """
+         Return a new QuerySet instance that will select only distinct results.
+         """
++        if self.query.combinator and not connections[self.db].features.supports_distinct_on_fields:
++            raise NotSupportedError('This database backend does not support distinct() after union().')
+         assert not self.query.is_sliced, \
+             "Cannot create distinct fields once a slice has been taken."
+         obj = self._chain()
+@@ -1418,7 +1420,7 @@ class RawQuerySet:
+         converter = connections[self.db].introspection.identifier_converter
+         model_init_fields = [f for f in self.model._meta.fields if converter(f.column) in self.columns]
+         annotation_fields = [(column, pos) for pos, column in enumerate(self.columns)
+-                             if column not in self.model_fields]
++                             if column not in the model_fields]
+         model_init_order = [self.columns.index(converter(f.column)) for f in model_init_fields]
+         model_init_names = [f.attname for f in model_init_fields]
+         return model_init_names, model_init_order, annotation_fields

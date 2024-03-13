@@ -1,0 +1,26 @@
+diff --git a/pylint/checkers/variables.py b/pylint/checkers/variables.py
+index ec0154387..feee3e206 100644
+--- a/pylint/checkers/variables.py
++++ b/pylint/checkers/variables.py
+@@ -32,6 +32,8 @@ from pylint.constants import PY39_PLUS, TYPING_NEVER, TYPING_NORETURN
+ from pylint.interfaces import CONTROL_FLOW, HIGH, INFERENCE, INFERENCE_FAILURE
+ from pylint.typing import MessageDefinitionTuple
+ 
++import fnmatch
++
+ if sys.version_info >= (3, 8):
+     from functools import cached_property
+ else:
+@@ -2947,8 +2949,10 @@ class VariablesChecker(BaseChecker):
+                 if module is astroid.Uninferable:
+                     return None
+             except astroid.NotFoundError:
+-                if module.name in self._ignored_modules:
+-                    return None
++                full_module_name = '.'.join([module.name] + module_names)
++                for ignored_module in self._ignored_modules:
++                    if fnmatch.fnmatch(full_module_name, ignored_module):
++                        return None
+                 self.add_message(
+                     "no-name-in-module", args=(name, module.name), node=node
+                 )

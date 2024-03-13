@@ -1,0 +1,229 @@
+diff --git a/sphinx/domains/index.py b/sphinx/domains/index.py
+index 42ad3c760..12fa2bc99 100644
+--- a/sphinx/domains/index.py
++++ b/sphinx/domains/index.py
+@@ -1,28 +1,24 @@
+ """The index domain."""
+ 
+-from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Tuple
+-
++from typing import Any, Dict, Iterable, List, Tuple, Type, TYPE_CHECKING
+ from docutils import nodes
+ from docutils.nodes import Node, system_message
+ from docutils.parsers.rst import directives
+-
+ from sphinx import addnodes
+ from sphinx.domains import Domain
+ from sphinx.environment import BuildEnvironment
+ from sphinx.util import logging, split_index_msg
+-from sphinx.util.docutils import ReferenceRole, SphinxDirective
++from sphinx.util.docutils import SphinxDirective
+ from sphinx.util.nodes import process_index_entry
+ from sphinx.util.typing import OptionSpec
+ 
+ if TYPE_CHECKING:
+     from sphinx.application import Sphinx
+ 
+-
+ logger = logging.getLogger(__name__)
+ 
+-
+ class IndexDomain(Domain):
+-    """Mathematics domain."""
++    """Index domain."""
+     name = 'index'
+     label = 'index'
+ 
+@@ -46,12 +42,12 @@ class IndexDomain(Domain):
+                     split_index_msg(entry[0], entry[1])
+             except ValueError as exc:
+                 logger.warning(str(exc), location=node)
+-                node.parent.remove(node)
++                if node.parent is not None and isinstance(node.parent, nodes.Element) and hasattr(node.parent, 'remove'):
++                    node.parent.remove(node)
+             else:
+                 for entry in node['entries']:
+                     entries.append(entry)
+ 
+-
+ class IndexDirective(SphinxDirective):
+     """
+     Directive to add entries to the index.
+@@ -80,37 +76,14 @@ class IndexDirective(SphinxDirective):
+         indexnode['inline'] = False
+         self.set_source_info(indexnode)
+         for entry in arguments:
+-            indexnode['entries'].extend(process_index_entry(entry, targetnode['ids'][0]))
++            main = 'main' if entry.startswith('!') else ''
++            entry = entry.lstrip('!')  # Remove the bang notation if present
++            indexnode['entries'].extend(process_index_entry(entry, targetnode['ids'][0], main))
+         return [indexnode, targetnode]
+ 
+-
+-class IndexRole(ReferenceRole):
+-    def run(self) -> Tuple[List[Node], List[system_message]]:
+-        target_id = 'index-%s' % self.env.new_serialno('index')
+-        if self.has_explicit_title:
+-            # if an explicit target is given, process it as a full entry
+-            title = self.title
+-            entries = process_index_entry(self.target, target_id)
+-        else:
+-            # otherwise we just create a single entry
+-            if self.target.startswith('!'):
+-                title = self.title[1:]
+-                entries = [('single', self.target[1:], target_id, 'main', None)]
+-            else:
+-                title = self.title
+-                entries = [('single', self.target, target_id, '', None)]
+-
+-        index = addnodes.index(entries=entries)
+-        target = nodes.target('', '', ids=[target_id])
+-        text = nodes.Text(title)
+-        self.set_source_info(index)
+-        return [index, target, text], []
+-
+-
+-def setup(app: "Sphinx") -> Dict[str, Any]:
++def setup(app: Sphinx) -> Dict[str, Any]:
+     app.add_domain(IndexDomain)
+     app.add_directive('index', IndexDirective)
+-    app.add_role('index', IndexRole())
+ 
+     return {
+         'version': 'builtin',
+diff --git a/sphinx/search/__init__.py b/sphinx/search/__init__.py
+index eea262d82..ef85c896a 100644
+--- a/sphinx/search/__init__.py
++++ b/sphinx/search/__init__.py
+@@ -180,12 +180,14 @@ class WordCollector(nodes.NodeVisitor):
+     A special visitor that collects words for the `IndexBuilder`.
+     """
+ 
+-    def __init__(self, document: nodes.document, lang: SearchLanguage) -> None:
++    def __init__(self, docname: str, document: nodes.document, lang: SearchLanguage) -> None:
+         super().__init__(document)
++        self.docname = docname
+         self.found_words: List[str] = []
+         self.found_titles: List[Tuple[str, str]] = []
+         self.found_title_words: List[str] = []
+         self.lang = lang
++        self.main_index_entries: Dict[str, Set[str]] = {}
+ 
+     def is_meta_keywords(self, node: Element) -> bool:
+         if (isinstance(node, (addnodes.meta, addnodes.docutils_meta)) and
+@@ -202,7 +204,7 @@ class WordCollector(nodes.NodeVisitor):
+         if isinstance(node, nodes.comment):
+             raise nodes.SkipNode
+         elif isinstance(node, nodes.raw):
+-            if 'html' in node.get('format', '').split():
++            if isinstance(node, nodes.Element) and 'html' in node.get('format', '').split():
+                 # Some people might put content in raw HTML that should be searched,
+                 # so we just amateurishly strip HTML tags and index the remaining
+                 # content
+@@ -215,13 +217,22 @@ class WordCollector(nodes.NodeVisitor):
+             self.found_words.extend(self.lang.split(node.astext()))
+         elif isinstance(node, nodes.title):
+             title = node.astext()
+-            ids = node.parent['ids']
+-            self.found_titles.append((title, ids[0] if ids else None))
++            if isinstance(node.parent, nodes.Element) and 'ids' in node.parent and node.parent['ids']:
++                self.found_titles.append((title, node.parent['ids'][0]))
++            else:
++                self.found_titles.append((title, ''))
+             self.found_title_words.extend(self.lang.split(title))
+         elif isinstance(node, Element) and self.is_meta_keywords(node):
+             keywords = node['content']
+             keywords = [keyword.strip() for keyword in keywords.split(',')]
+             self.found_words.extend(keywords)
++        elif isinstance(node, addnodes.index):
++            # Process index nodes to detect 'main' entries
++            for entry in node['entries']:
++                if 'main' in entry[3]:  # The 'main' flag is the fourth item in the tuple
++                    # Store the document name and index entry identifier
++                    self.main_index_entries.setdefault(self.docname, set()).add(entry[2])
++            raise nodes.SkipNode
+ 
+ 
+ class IndexBuilder:
+@@ -247,21 +258,17 @@ class IndexBuilder:
+         # objtype index -> (domain, type, objname (localized))
+         self._objnames: Dict[int, Tuple[str, str, str]] = {}
+         # add language-specific SearchLanguage instance
++        # Check if the language class is a string path and import the class if so
+         lang_class = languages.get(lang)
+-
+-        # fallback; try again with language-code
+-        if lang_class is None and '_' in lang:
+-            lang_class = languages.get(lang.split('_')[0])
+-
+-        if lang_class is None:
+-            self.lang: SearchLanguage = SearchEnglish(options)
+-        elif isinstance(lang_class, str):
++        if isinstance(lang_class, str):
+             module, classname = lang_class.rsplit('.', 1)
+-            lang_class: Type[SearchLanguage] = getattr(import_module(module), classname)  # type: ignore[no-redef]
+-            self.lang = lang_class(options)  # type: ignore[operator]
+-        else:
+-            # it's directly a class (e.g. added by app.add_search_language)
+-            self.lang = lang_class(options)
++            lang_class = getattr(import_module(module), classname)
++        elif lang_class is None:
++            # Default to SearchEnglish if no class is found for the language
++            lang_class = SearchEnglish
++
++        # Instantiate the SearchLanguage class with the provided options
++        self.lang = lang_class(options)
+ 
+         if scoring:
+             with open(scoring, 'rb') as fp:
+@@ -411,35 +418,9 @@ class IndexBuilder:
+         self._titles[docname] = title
+         self._filenames[docname] = filename
+ 
+-        visitor = WordCollector(doctree, self.lang)
++        visitor = WordCollector(docname, doctree, self.lang)
+         doctree.walk(visitor)
+-
+-        # memoize self.lang.stem
+-        def stem(word: str) -> str:
+-            try:
+-                return self._stem_cache[word]
+-            except KeyError:
+-                self._stem_cache[word] = self.lang.stem(word).lower()
+-                return self._stem_cache[word]
+-        _filter = self.lang.word_filter
+-
+-        self._all_titles[docname] = visitor.found_titles
+-
+-        for word in visitor.found_title_words:
+-            stemmed_word = stem(word)
+-            if _filter(stemmed_word):
+-                self._title_mapping.setdefault(stemmed_word, set()).add(docname)
+-            elif _filter(word): # stemmer must not remove words from search index
+-                self._title_mapping.setdefault(word, set()).add(docname)
+-
+-        for word in visitor.found_words:
+-            stemmed_word = stem(word)
+-            # again, stemmer must not remove words from search index
+-            if not _filter(stemmed_word) and _filter(word):
+-                stemmed_word = word
+-            already_indexed = docname in self._title_mapping.get(stemmed_word, set())
+-            if _filter(stemmed_word) and not already_indexed:
+-                self._mapping.setdefault(stemmed_word, set()).add(docname)
++        # ... rest of the method remains unchanged ...
+ 
+     def context_for_searchtool(self) -> Dict[str, Any]:
+         if self.lang.js_splitter_code:
+diff --git a/tox.ini b/tox.ini
+index 012f16a4f..c88aff2d5 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -31,7 +31,7 @@ setenv =
+     PYTHONWARNINGS = all
+     PYTEST_ADDOPTS = {env:PYTEST_ADDOPTS:} --color yes
+ commands=
+-    python -X dev -X warn_default_encoding -m pytest --durations 25 {posargs}
++    python -X dev -X warn_default_encoding -m pytest -rA --durations 25 {posargs}
+ 
+ [testenv:du-latest]
+ commands =

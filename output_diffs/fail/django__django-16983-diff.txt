@@ -1,0 +1,24 @@
+diff --git a/django/contrib/admin/checks.py b/django/contrib/admin/checks.py
+index 2c90dedc31..54c7115053 100644
+--- a/django/contrib/admin/checks.py
++++ b/django/contrib/admin/checks.py
+@@ -533,6 +533,19 @@ class BaseModelAdminChecks:
+                 return must_be(
+                     "a many-to-many field", option=label, obj=obj, id="admin.E020"
+                 )
++            elif (
++                field.remote_field.through is not None
++                and not field.remote_field.through._meta.auto_created
++            ):
++                return [
++                    checks.Error(
++                        "The field '%s' cannot be used in 'filter_horizontal' or 'filter_vertical' "
++                        "because it has a custom 'through' model. Remove the 'through' parameter "
++                        "to use 'filter_horizontal' or 'filter_vertical'." % field_name,
++                        obj=obj.__class__,
++                        id="admin.E021",
++                    )
++                ]
+             else:
+                 return []
+ 

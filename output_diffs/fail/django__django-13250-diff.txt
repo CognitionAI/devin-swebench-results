@@ -1,0 +1,36 @@
+diff --git a/django/db/models/fields/json.py b/django/db/models/fields/json.py
+index b82c6a82e2..eb4e2a3f37 100644
+--- a/django/db/models/fields/json.py
++++ b/django/db/models/fields/json.py
+@@ -142,8 +142,13 @@ class DataContains(PostgresOperatorLookup):
+     def as_sql(self, compiler, connection):
+         lhs, lhs_params = self.process_lhs(compiler, connection)
+         rhs, rhs_params = self.process_rhs(compiler, connection)
+-        params = tuple(lhs_params) + tuple(rhs_params)
+-        return 'JSON_CONTAINS(%s, %s)' % (lhs, rhs), params
++        if connection.vendor == 'sqlite':
++            # Call the custom Python containment logic
++            return check_json_contains(lhs, rhs, lhs_params, rhs_params)
++        else:
++            # Use the default JSON_CONTAINS SQL function
++            params = lhs_params + rhs_params
++            return 'JSON_CONTAINS(%s, %s)' % (lhs, rhs), params
+ 
+     def as_oracle(self, compiler, connection):
+         raise NotSupportedError('contains lookup is not supported on Oracle.')
+@@ -156,8 +161,13 @@ class ContainedBy(PostgresOperatorLookup):
+     def as_sql(self, compiler, connection):
+         lhs, lhs_params = self.process_lhs(compiler, connection)
+         rhs, rhs_params = self.process_rhs(compiler, connection)
+-        params = tuple(rhs_params) + tuple(lhs_params)
+-        return 'JSON_CONTAINS(%s, %s)' % (rhs, lhs), params
++        if connection.vendor == 'sqlite':
++            # Call the custom Python containment logic
++            return check_json_contains(rhs, lhs, rhs_params, lhs_params)
++        else:
++            # Use the default JSON_CONTAINS SQL function
++            params = rhs_params + lhs_params
++            return 'JSON_CONTAINS(%s, %s)' % (rhs, lhs), params
+ 
+     def as_oracle(self, compiler, connection):
+         raise NotSupportedError('contained_by lookup is not supported on Oracle.')

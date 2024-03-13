@@ -1,0 +1,17 @@
+diff --git a/sympy/assumptions/handlers/ntheory.py b/sympy/assumptions/handlers/ntheory.py
+index 4f1397b283..006f1d2cdd 100644
+--- a/sympy/assumptions/handlers/ntheory.py
++++ b/sympy/assumptions/handlers/ntheory.py
+@@ -127,6 +127,12 @@ def _EvenPredicate_number(expr, assumptions):
+         return False
+     if isinstance(expr, (float, Float)):
+         return False
++    # Check if the expression is a division of a power by 2
++    if isinstance(expr, Mul) and len(expr.args) == 2:
++        pow_expr, div_by_two = expr.args
++        if isinstance(div_by_two, Rational) and div_by_two == Rational(1, 2):
++            if isinstance(pow_expr, Pow) and ask(Q.even(pow_expr.base), assumptions) and pow_expr.exp == 2:
++                return True
+     return i % 2 == 0
+ 
+ @EvenPredicate.register(Expr)

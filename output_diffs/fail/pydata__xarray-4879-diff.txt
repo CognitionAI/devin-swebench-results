@@ -1,0 +1,149 @@
+diff --git a/xarray/backends/api.py b/xarray/backends/api.py
+index 13bcf046..0c3de075 100644
+--- a/xarray/backends/api.py
++++ b/xarray/backends/api.py
+@@ -3,7 +3,7 @@ from __future__ import annotations
+ import os
+ from functools import partial
+ from glob import glob
+-from io import BytesIO
++from io import BytesIO, BufferedIOBase
+ from numbers import Number
+ from typing import (
+     TYPE_CHECKING,
+@@ -39,33 +39,28 @@ from . import plugins
+ from .common import AbstractDataStore, ArrayWriter, _normalize_path
+ from .locks import _get_scheduler
+ 
+-if TYPE_CHECKING:
+-    try:
+-        from dask.delayed import Delayed
+-    except ImportError:
+-        Delayed = None  # type: ignore
+-    from io import BufferedIOBase
+-
+-    from ..core.types import (
+-        CombineAttrsOptions,
+-        CompatOptions,
+-        JoinOptions,
+-        NestedSequence,
+-    )
+-    from .common import BackendEntrypoint
+-
+-    T_NetcdfEngine = Literal["netcdf4", "scipy", "h5netcdf"]
+-    T_Engine = Union[
+-        T_NetcdfEngine,
+-        Literal["pydap", "pynio", "pseudonetcdf", "cfgrib", "zarr"],
+-        Type[BackendEntrypoint],
+-        str,  # no nice typing support for custom backends
+-        None,
+-    ]
+-    T_Chunks = Union[int, dict[Any, Any], Literal["auto"], None]
+-    T_NetcdfTypes = Literal[
+-        "NETCDF4", "NETCDF4_CLASSIC", "NETCDF3_64BIT", "NETCDF3_CLASSIC"
+-    ]
++from dask.delayed import Delayed
++
++from ..core.types import (
++    CombineAttrsOptions,
++    CompatOptions,
++    JoinOptions,
++    NestedSequence,
++)
++from .common import BackendEntrypoint
++
++T_NetcdfEngine = Literal["netcdf4", "scipy", "h5netcdf"]
++T_Engine = Union[
++    T_NetcdfEngine,
++    Literal["pydap", "pynio", "pseudonetcdf", "cfgrib", "zarr"],
++    Type[BackendEntrypoint],
++    str,  # no nice typing support for custom backends
++    None,
++]
++T_Chunks = Union[int, dict[Any, Any], Literal["auto"], None]
++T_NetcdfTypes = Literal[
++    "NETCDF4", "NETCDF4_CLASSIC", "NETCDF3_64BIT", "NETCDF3_CLASSIC"
++]
+ 
+ 
+ DATAARRAY_NAME = "__xarray_dataarray_name__"
+@@ -554,6 +549,38 @@ def open_dataset(
+         **decoders,
+         **kwargs,
+     )
++
++    # Invalidate cache if the file has been deleted or modified since last accessed
++    if isinstance(filename_or_obj, str):
++        file_path = os.path.expanduser(filename_or_obj)
++        if not os.path.exists(file_path):
++            # Clear the cache if the file has been deleted
++            cache = False
++        else:
++            source_mtime = backend_ds.encoding.get("source_mtime")
++            current_mtime = os.path.getmtime(file_path)
++            if source_mtime is not None and source_mtime != current_mtime:
++                # Reload the dataset if the file has been modified
++                ds.close()
++                backend_ds = backend.open_dataset(
++                    filename_or_obj,
++                    drop_variables=drop_variables,
++                    **decoders,
++                    **kwargs,
++                )
++                ds = _dataset_from_backend_dataset(
++                    backend_ds,
++                    filename_or_obj,
++                    engine,
++                    chunks,
++                    cache,
++                    overwrite_encoded_chunks,
++                    inline_array,
++                    drop_variables=drop_variables,
++                    **decoders,
++                    **kwargs,
++                )
++
+     return ds
+ 
+ 
+@@ -819,9 +846,10 @@ def open_mfdataset(
+     engine : {"netcdf4", "scipy", "pydap", "h5netcdf", "pynio", "cfgrib", \
+         "pseudonetcdf", "zarr", None}, installed backend \
+         or subclass of xarray.backends.BackendEntrypoint, optional
+-        Engine to use when reading files. If not provided, the default engine
+-        is chosen based on available dependencies, with a preference for
+-        "netcdf4".
++        Engine to use when reading files. If not provided, the
++        default engine is chosen based on available dependencies, with a
++        preference for "netcdf4" if writing to a file on disk.
++        See `Dataset.to_netcdf` for additional information.
+     data_vars : {"minimal", "different", "all"} or list of str, default: "all"
+         These data variables will be concatenated together:
+           * "minimal": Only data variables in which the dimension already
+@@ -905,6 +933,7 @@ def open_mfdataset(
+ 
+     Examples
+     --------
++
+     A user might want to pass additional arguments into ``preprocess`` when
+     applying some operation to many individual files that are being opened. One route
+     to do this is through the use of ``functools.partial``.
+diff --git a/xarray/core/dataset.py b/xarray/core/dataset.py
+index ab1d36a9..9db4728f 100644
+--- a/xarray/core/dataset.py
++++ b/xarray/core/dataset.py
+@@ -2091,6 +2091,14 @@ class Dataset(
+         )
+ 
+     def __repr__(self) -> str:
++        # Check if the file from which the dataset was loaded has been deleted
++        # and clear the cache if it has. This ensures that the representation is
++        # always up-to-date with the current state of the data on disk.
++        if hasattr(self, '_file_obj') and self._file_obj is not None:
++            file_path = self._file_obj._filename
++            if not os.path.exists(file_path):
++                self._cache.clear()
++
+         return formatting.dataset_repr(self)
+ 
+     def _repr_html_(self) -> str:

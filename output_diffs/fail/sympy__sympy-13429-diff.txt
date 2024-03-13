@@ -1,0 +1,54 @@
+diff --git a/sympy/core/numbers.py b/sympy/core/numbers.py
+index cacba9eb29..be98ba715a 100644
+--- a/sympy/core/numbers.py
++++ b/sympy/core/numbers.py
+@@ -1735,7 +1735,7 @@ def __eq__(self, other):
+                 # so we can just check equivalence of args
+                 return self.p == other.p and self.q == other.q
+             if isinstance(other, Float):
+-                return mlib.mpf_eq(self._as_mpf_val(other._prec), other._mpf_)
++                return other.__eq__(self)
+         return False
+ 
+     def __ne__(self, other):
+@@ -2156,12 +2156,7 @@ def __le__(self, other):
+         return Rational.__le__(self, other)
+ 
+     def __hash__(self):
+-        return hash(self.p)
+-
+-    def __index__(self):
+-        return self.p
+-
+-    ########################################
++        return super(Integer, self).__hash__()
+ 
+     def _eval_is_odd(self):
+         return bool(self.p % 2)
+@@ -2937,7 +2932,7 @@ def __add__(self, other):
+                 return S.NaN
+             elif other.is_Float:
+                 if other == Float('inf'):
+-                    return Float('nan')
++                    return S.NaN
+                 else:
+                     return Float('-inf')
+             else:
+@@ -2952,7 +2947,7 @@ def __sub__(self, other):
+                 return S.NaN
+             elif other.is_Float:
+                 if other == Float('-inf'):
+-                    return Float('nan')
++                    return S.NaN
+                 else:
+                     return Float('-inf')
+             else:
+@@ -3147,7 +3142,7 @@ class NaN(with_metaclass(Singleton, Number)):
+     Examples
+     ========
+ 
+-    >>> from sympy import nan, S, oo, Eq
++    >>> from sympy import nan, S, oo, sin, exp, integrate, Symbol
+     >>> nan is S.NaN
+     True
+     >>> oo - oo

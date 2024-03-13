@@ -1,0 +1,21 @@
+diff --git a/django/db/models/sql/where.py b/django/db/models/sql/where.py
+index bf0828dc8b..aafd2b4c88 100644
+--- a/django/db/models/sql/where.py
++++ b/django/db/models/sql/where.py
+@@ -106,10 +106,12 @@ class WhereNode(tree.Node):
+         sql_string = conn.join(result)
+         if sql_string:
+             if self.negated:
+-                # Some backends (Oracle at least) need parentheses
+-                # around the inner SQL in the negated case, even if the
+-                # inner SQL contains just a single expression.
+-                sql_string = 'NOT (%s)' % sql_string
++                # Adjust the negation logic to handle NULL values correctly
++                # for both Q2a and Q2b queries.
++                if connection.features.interprets_empty_strings_as_nulls:
++                    sql_string = 'NOT (%s)' % sql_string
++                else:
++                    sql_string = '(%s) IS NOT TRUE' % sql_string
+             elif len(result) > 1 or self.resolved:
+                 sql_string = '(%s)' % sql_string
+         return sql_string, result_params

@@ -1,0 +1,23 @@
+diff --git a/xarray/core/indexes.py b/xarray/core/indexes.py
+index 8ff0d40f..50b0ede7 100644
+--- a/xarray/core/indexes.py
++++ b/xarray/core/indexes.py
+@@ -1090,14 +1090,14 @@ class Indexes(collections.abc.Mapping, Generic[T_PandasOrXarrayIndex]):
+ 
+     def get_unique(self) -> list[T_PandasOrXarrayIndex]:
+         """Return a list of unique indexes, preserving order."""
+-
+         unique_indexes: list[T_PandasOrXarrayIndex] = []
+-        seen: set[T_PandasOrXarrayIndex] = set()
++        seen_ids: set[int] = set()
+ 
+         for index in self._indexes.values():
+-            if index not in seen:
++            index_id = id(index)
++            if index_id not in seen_ids:
+                 unique_indexes.append(index)
+-                seen.add(index)
++                seen_ids.add(index_id)
+ 
+         return unique_indexes
+ 

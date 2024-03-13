@@ -1,0 +1,14 @@
+diff --git a/django/utils/autoreload.py b/django/utils/autoreload.py
+index fc330eb87e..b1a9947f84 100644
+--- a/django/utils/autoreload.py
++++ b/django/utils/autoreload.py
+@@ -140,8 +140,7 @@ def iter_modules_and_files(modules, extra_files):
+         try:
+             resolved_path = path.resolve(strict=True).absolute()
+         except FileNotFoundError:
+-            # The module could have been removed, don't fail loudly if this
+-            # is the case.
++            logger.warning('File %s not found. Skipping.', path)
+             continue
+         except ValueError as e:
+             # Network filesystems may return null bytes in file paths.

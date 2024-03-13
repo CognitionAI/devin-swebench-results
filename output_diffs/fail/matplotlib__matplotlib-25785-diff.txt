@@ -1,0 +1,19 @@
+diff --git a/lib/matplotlib/backends/backend_ps.py b/lib/matplotlib/backends/backend_ps.py
+index b425e1e5ba..41fe56c6f4 100644
+--- a/lib/matplotlib/backends/backend_ps.py
++++ b/lib/matplotlib/backends/backend_ps.py
+@@ -80,10 +80,10 @@ papersize = {'letter': (8.5, 11),
+ 
+ 
+ def _get_papertype(w, h):
+-    for key, (pw, ph) in sorted(papersize.items(), reverse=True):
+-        if key.startswith('l'):
+-            continue
+-        if w < pw and h < ph:
++    sorted_keys = sorted(papersize, key=lambda key: (papersize[key][0], papersize[key][1]))
++    for key in sorted_keys:
++        pw, ph = papersize[key]
++        if w <= pw and h <= ph:
+             return key
+     return 'a0'
+ 

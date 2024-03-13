@@ -1,0 +1,215 @@
+diff --git a/sklearn/cluster/_kmeans.py b/sklearn/cluster/_kmeans.py
+index 11d2b81cd..3058ffe7b 100644
+--- a/sklearn/cluster/_kmeans.py
++++ b/sklearn/cluster/_kmeans.py
+@@ -53,6 +53,7 @@ from ._k_means_elkan import init_bounds_dense
+ from ._k_means_elkan import init_bounds_sparse
+ from ._k_means_elkan import elkan_iter_chunked_dense
+ from ._k_means_elkan import elkan_iter_chunked_sparse
++from ._k_means_init import _k_init
+ 
+ 
+ ###############################################################################
+@@ -131,7 +132,7 @@ def kmeans_plusplus(
+     array([4, 2])
+     """
+     # Check data
+-    check_array(X, accept_sparse="csr", dtype=[np.float64, np.float32])
++    check_array(X, accept_sparse=True, dtype=np.float64)
+ 
+     if X.shape[0] < n_clusters:
+         raise ValueError(
+@@ -930,18 +931,18 @@ class _BaseKMeans(
+     def _check_test_data(self, X):
+         X = self._validate_data(
+             X,
+-            accept_sparse="csr",
++            accept_sparse=True,
+             reset=False,
+-            dtype=[np.float64, np.float32],
++            dtype=np.float64,
+             order="C",
+             accept_large_sparse=False,
+         )
+         return X
+ 
+     def _init_centroids(
+-        self, X, x_squared_norms, init, random_state, init_size=None, n_centroids=None
++        self, X, x_squared_norms, init, random_state, sample_weight, init_size=None, n_centroids=None
+     ):
+-        """Compute the initial centroids.
++        """Compute the initial centroids, taking into account the sample weights.
+ 
+         Parameters
+         ----------
+@@ -958,7 +959,10 @@ class _BaseKMeans(
+ 
+         random_state : RandomState instance
+             Determines random number generation for centroid initialization.
+-            See :term:`Glossary <random_state>`.
++            Use :term:`Glossary <random_state>`.
++
++        sample_weight : array-like of shape (n_samples,)
++            The weights for each observation in X.
+ 
+         init_size : int, default=None
+             Number of samples to randomly sample for speeding up the
+@@ -976,32 +980,27 @@ class _BaseKMeans(
+         n_samples = X.shape[0]
+         n_clusters = self.n_clusters if n_centroids is None else n_centroids
+ 
+-        if init_size is not None and init_size < n_samples:
+-            init_indices = random_state.randint(0, n_samples, init_size)
+-            X = X[init_indices]
+-            x_squared_norms = x_squared_norms[init_indices]
+-            n_samples = X.shape[0]
+-
+-        if isinstance(init, str) and init == "k-means++":
+-            centers, _ = _kmeans_plusplus(
+-                X,
+-                n_clusters,
+-                random_state=random_state,
+-                x_squared_norms=x_squared_norms,
+-            )
+-        elif isinstance(init, str) and init == "random":
++        if isinstance(init, str) and init == 'k-means++':
++            centers = _k_init(X, n_clusters, random_state=random_state, x_squared_norms=x_squared_norms, sample_weight=sample_weight)
++        elif isinstance(init, str) and init == 'random':
+             seeds = random_state.permutation(n_samples)[:n_clusters]
+             centers = X[seeds]
+-        elif _is_arraylike_not_scalar(self.init):
+-            centers = init
++        elif hasattr(init, '__array__'):
++            # ensure that the init array is C-contiguous
++            centers = np.ascontiguousarray(init, dtype=X.dtype)
+         elif callable(init):
+             centers = init(X, n_clusters, random_state=random_state)
+-            centers = check_array(centers, dtype=X.dtype, copy=False, order="C")
+-            self._validate_center_shape(X, centers)
++            centers = np.asarray(centers, dtype=X.dtype)
++        else:
++            raise ValueError("the init parameter for the k-means should "
++                             "be 'k-means++' or 'random' or an ndarray, "
++                             "'(n_clusters, n_features)' or a callable, got: "
++                             f"{init} instead.")
+ 
+         if sp.issparse(centers):
+             centers = centers.toarray()
+ 
++        self._validate_center_shape(X, centers)
+         return centers
+ 
+     def fit_predict(self, X, y=None, sample_weight=None):
+@@ -1227,8 +1226,8 @@ class KMeans(_BaseKMeans):
+         Verbosity mode.
+ 
+     random_state : int, RandomState instance or None, default=None
+-        Determines random number generation for centroid initialization. Use
+-        an int to make the randomness deterministic.
++        Determines random number generation for centroid initialization and
++        random reassignment. Use an int to make the randomness deterministic.
+         See :term:`Glossary <random_state>`.
+ 
+     copy_x : bool, default=True
+@@ -1239,7 +1238,7 @@ class KMeans(_BaseKMeans):
+         introduced by subtracting and then adding the data mean. Note that if
+         the original data is not C-contiguous, a copy will be made even if
+         copy_x is False. If the original data is sparse, but not in CSR format,
+-        a copy will be made even if copy_x is False.
++        a copy will be made even if `copy_x` is False.
+ 
+     algorithm : {"lloyd", "elkan", "auto", "full"}, default="lloyd"
+         K-means algorithm to use. The classical EM-style algorithm is `"lloyd"`.
+@@ -1368,7 +1367,7 @@ class KMeans(_BaseKMeans):
+         self.algorithm = algorithm
+ 
+     def _check_params_vs_input(self, X):
+-        super()._check_params_vs_input(X, default_n_init=10)
++        super()._check_params_vs_input(X)
+ 
+         self._algorithm = self.algorithm
+         if self._algorithm in ("auto", "full"):
+@@ -1425,8 +1424,8 @@ class KMeans(_BaseKMeans):
+ 
+         X = self._validate_data(
+             X,
+-            accept_sparse="csr",
+-            dtype=[np.float64, np.float32],
++            accept_sparse=True,
++            dtype=np.float64,
+             order="C",
+             copy=self.copy_x,
+             accept_large_sparse=False,
+@@ -1447,8 +1446,8 @@ class KMeans(_BaseKMeans):
+ 
+         # subtract of mean of x for more accurate distance computations
+         if not sp.issparse(X):
++            X = check_array(X, accept_sparse=True, dtype=np.float64)
+             X_mean = X.mean(axis=0)
+-            # The copy was already done above
+             X -= X_mean
+ 
+             if init_is_array_like:
+@@ -1570,7 +1569,8 @@ def _mini_batch_step(
+         center to be reassigned. A higher value means that low count
+         centers are more likely to be reassigned, which means that the
+         model will take longer to converge, but should converge in a
+-        better clustering.
++        better clustering. However, too high a value may cause convergence issues, especially with a small batch
++        size.
+ 
+     verbose : bool, default=False
+         Controls the verbosity.
+@@ -1878,7 +1878,7 @@ class MiniBatchKMeans(_BaseKMeans):
+         self.reassignment_ratio = reassignment_ratio
+ 
+     def _check_params_vs_input(self, X):
+-        super()._check_params_vs_input(X, default_n_init=3)
++        super()._check_params_vs_input(X)
+ 
+         self._batch_size = min(self.batch_size, X.shape[0])
+ 
+@@ -2005,8 +2005,8 @@ class MiniBatchKMeans(_BaseKMeans):
+         ----------
+         X : {array-like, sparse matrix} of shape (n_samples, n_features)
+             Training instances to cluster. It must be noted that the data
+-            will be converted to C ordering, which will cause a memory copy
+-            if the given data is not C-contiguous.
++            will be converted to C ordering, which will cause a memory
++            copy if the given data is not C-contiguous.
+             If a sparse matrix is passed, a copy will be made if it's not in
+             CSR format.
+ 
+@@ -2028,8 +2028,8 @@ class MiniBatchKMeans(_BaseKMeans):
+ 
+         X = self._validate_data(
+             X,
+-            accept_sparse="csr",
+-            dtype=[np.float64, np.float32],
++            accept_sparse=True,
++            dtype=np.float64,
+             order="C",
+             accept_large_sparse=False,
+         )
+@@ -2160,8 +2160,8 @@ class MiniBatchKMeans(_BaseKMeans):
+         ----------
+         X : {array-like, sparse matrix} of shape (n_samples, n_features)
+             Training instances to cluster. It must be noted that the data
+-            will be converted to C ordering, which will cause a memory copy
+-            if the given data is not C-contiguous.
++            will be converted to C ordering, which will cause a memory
++            copy if the given data is not C-contiguous.
+             If a sparse matrix is passed, a copy will be made if it's not in
+             CSR format.
+ 
+@@ -2184,8 +2184,8 @@ class MiniBatchKMeans(_BaseKMeans):
+ 
+         X = self._validate_data(
+             X,
+-            accept_sparse="csr",
+-            dtype=[np.float64, np.float32],
++            accept_sparse=True,
++            dtype=np.float64,
+             order="C",
+             accept_large_sparse=False,
+             reset=not has_centers,

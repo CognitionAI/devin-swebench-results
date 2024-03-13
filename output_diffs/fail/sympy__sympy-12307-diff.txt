@@ -1,0 +1,37 @@
+diff --git a/sympy/printing/fcode.py b/sympy/printing/fcode.py
+index 9e6fd6cdb4..e4cf3c57aa 100644
+--- a/sympy/printing/fcode.py
++++ b/sympy/printing/fcode.py
+@@ -44,7 +44,7 @@
+     "exp": "exp",
+     "erf": "erf",
+     "Abs": "Abs",
+-    "sign": "sign",
++    # "sign": "sign",
+     "conjugate": "conjg"
+ }
+ 
+@@ -220,6 +220,8 @@ def _print_Function(self, expr):
+         if not isinstance(eval_expr, Function):
+             return self._print(eval_expr)
+         else:
++            if expr.func.__name__ == "sign":
++                return self._print_sign_function(expr)
+             return CodePrinter._print_Function(self, expr.func(*args))
+ 
+     def _print_ImaginaryUnit(self, expr):
+@@ -414,6 +416,14 @@ def indent_code(self, code):
+             return self._wrap_fortran(new_code)
+         return new_code
+ 
++    def _print_sign_function(self, expr):
++        # Assuming expr is a Function instance with one argument
++        arg = expr.args[0]
++        if arg.is_integer:
++            return "sign(1, {0})".format(self._print(arg))
++        else:
++            return "sign(1d0, {0})".format(self._print(arg))
++
+ 
+ def fcode(expr, assign_to=None, **settings):
+     """Converts an expr to a string of c code

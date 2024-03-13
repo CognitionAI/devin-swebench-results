@@ -1,0 +1,81 @@
+diff --git a/setup.py b/setup.py
+index 8d40de1a8..05716fae1 100644
+--- a/setup.py
++++ b/setup.py
+@@ -21,7 +21,7 @@ install_requires = [
+     'sphinxcontrib-htmlhelp',
+     'sphinxcontrib-serializinghtml',
+     'sphinxcontrib-qthelp',
+-    'Jinja2>=2.3',
++    'Jinja2<3.1',
+     'Pygments>=2.0',
+     'docutils>=0.12',
+     'snowballstemmer>=1.1',
+diff --git a/sphinx/ext/autodoc/__init__.py b/sphinx/ext/autodoc/__init__.py
+index ddfd2b365..1a860aedc 100644
+--- a/sphinx/ext/autodoc/__init__.py
++++ b/sphinx/ext/autodoc/__init__.py
+@@ -814,30 +814,37 @@ class Documenter:
+         # find out which members are documentable
+         members_check_module, members = self.get_object_members(want_all)
+ 
++        # filter members with the option to include inherited members
++        if self.options.inherited_members:
++            members = self.get_inherited_members(members)
++
+         # document non-skipped members
+         memberdocumenters = []  # type: List[Tuple[Documenter, bool]]
+         for (mname, member, isattr) in self.filter_members(members, want_all):
+             classes = [cls for cls in self.documenters.values()
+                        if cls.can_document_member(member, mname, isattr, self)]
+             if not classes:
+-                # don't know how to document this member
+                 continue
++
+             # prefer the documenter with the highest priority
+-            classes.sort(key=lambda cls: cls.priority)
+-            # give explicitly separated module name, so that members
+-            # of inner classes can be documented
+-            full_mname = self.modname + '::' + \
+-                '.'.join(self.objpath + [mname])
+-            documenter = classes[-1](self.directive, full_mname, self.indent)
++            documenter_class = max(classes, key=lambda cls: cls.priority)
++            documenter = documenter_class(self.directive, mname, self.indent)
+             memberdocumenters.append((documenter, isattr))
+ 
+-        member_order = self.options.member_order or self.config.autodoc_member_order
+-        memberdocumenters = self.sort_members(memberdocumenters, member_order)
+-
+         for documenter, isattr in memberdocumenters:
+-            documenter.generate(
+-                all_members=True, real_modname=self.real_modname,
+-                check_module=members_check_module and not isattr)
++            documenter.generate(more_content=self.gen_more_content(mname, member, isattr),
++                                real_modname=self.real_modname,
++                                check_module=members_check_module)
++
++    def get_inherited_members(self, members):
++        """Return a list of members including those inherited from base classes."""
++        result = []
++        for cls in inspect.getmro(self.object)[1:]:
++            if hasattr(cls, '__dict__'):
++                for name, member in cls.__dict__.items():
++                    if name not in members:
++                        result.append((name, member, False))
++        return members + result
+ 
+         # reset current objects
+         self.env.temp_data['autodoc:module'] = None
+diff --git a/tox.ini b/tox.ini
+index dbb705a3a..9f4fc3a32 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -28,7 +28,7 @@ setenv =
+     PYTHONWARNINGS = all,ignore::ImportWarning:importlib._bootstrap_external,ignore::DeprecationWarning:site,ignore::DeprecationWarning:distutils
+     PYTEST_ADDOPTS = {env:PYTEST_ADDOPTS:} --color yes
+ commands=
+-    python -X dev -m pytest --durations 25 {posargs}
++    python -X dev -m pytest -rA --durations 25 {posargs}
+ 
+ [testenv:flake8]
+ basepython = python3

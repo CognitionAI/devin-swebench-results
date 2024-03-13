@@ -1,0 +1,29 @@
+diff --git a/xarray/core/dataset.py b/xarray/core/dataset.py
+index b5b694c7..ff14cbb6 100644
+--- a/xarray/core/dataset.py
++++ b/xarray/core/dataset.py
+@@ -3504,9 +3504,10 @@ class Dataset(
+     # Helper methods for rename()
+     def _rename_vars(
+         self, name_dict, dims_dict
+-    ) -> tuple[dict[Hashable, Variable], set[Hashable]]:
++    ) -> tuple[dict[Hashable, Variable], set[Hashable], dict[Hashable, Index]]:
+         variables = {}
+         coord_names = set()
++        indexes = dict(self._indexes)
+         for k, v in self.variables.items():
+             var = v.copy(deep=False)
+             var.dims = tuple(dims_dict.get(dim, dim) for dim in v.dims)
+@@ -3516,7 +3517,11 @@ class Dataset(
+             variables[name] = var
+             if k in self._coord_names:
+                 coord_names.add(name)
+-        return variables, coord_names
++                # Check if the variable is being renamed to a dimension coordinate
++                if name in self.dims and name not in indexes:
++                    # Create a new index for the dimension coordinate using xarray's Index class
++                    indexes[name] = xarray.core.indexing.PandasIndex(var.to_index(), name=name)
++        return variables, coord_names, indexes
+ 
+     def _rename_dims(self, name_dict: Mapping[Any, Hashable]) -> dict[Hashable, int]:
+         return {name_dict.get(k, k): v for k, v in self.dims.items()}

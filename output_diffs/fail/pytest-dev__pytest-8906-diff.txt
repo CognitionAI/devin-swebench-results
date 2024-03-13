@@ -1,0 +1,20 @@
+diff --git a/src/_pytest/python.py b/src/_pytest/python.py
+index 79dfb7320..4c5684e14 100644
+--- a/src/_pytest/python.py
++++ b/src/_pytest/python.py
+@@ -608,10 +608,11 @@ class Module(nodes.File, PyCollector):
+             if e.allow_module_level:
+                 raise
+             raise self.CollectError(
+-                "Using pytest.skip outside of a test is not allowed. "
+-                "To decorate a test function, use the @pytest.mark.skip "
+-                "or @pytest.mark.skipif decorators instead, and to skip a "
+-                "module use `pytestmark = pytest.mark.{skip,skipif}."
++                "Using pytest.skip outside of a test is not allowed without specifying "
++                "allow_module_level=True. To skip an entire module, use pytest.skip(msg='reason', "
++                "allow_module_level=True). For skipping individual tests, use the @pytest.mark.skip "
++                "or @pytest.mark.skipif decorators instead, and to conditionally skip a "
++                "module, you can set `pytestmark = pytest.mark.skipif(condition, reason='reason')`."
+             ) from e
+         self.config.pluginmanager.consider_module(mod)
+         return mod

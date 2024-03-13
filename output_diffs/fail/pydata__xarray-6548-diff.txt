@@ -1,0 +1,57 @@
+diff --git a/xarray/core/computation.py b/xarray/core/computation.py
+index 1834622d..6135867b 100644
+--- a/xarray/core/computation.py
++++ b/xarray/core/computation.py
+@@ -1863,7 +1863,22 @@ def polyval(coord, coeffs, degree_dim="degree"):
+     from .dataarray import DataArray
+     from .missing import get_clean_interp_index
+ 
+-    x = get_clean_interp_index(coord, coord.name, strict=False)
++    # Check if the coordinate has a name, and if not, create a temporary one
++    if coord.name is None:
++        # Generate a unique temporary name for the coordinate
++        coord_name = "temp_coord_name"
++        # Ensure the temporary name is not already in use
++        while coord_name in coord.dims or coord_name in coord.coords:
++            coord_name += "_"
++    else:
++        coord_name = coord.name
++
++    # Proceed with using coord_name for interpolation or curve fitting
++    x = get_clean_interp_index(coord, coord_name, strict=False)
++
++    print("coord_name:", coord_name)
++    print("coord.dims:", coord.dims)
++    print("coord.coords:", coord.coords)
+ 
+     deg_coord = coeffs[degree_dim]
+ 
+diff --git a/xarray/core/missing.py b/xarray/core/missing.py
+index 3d33631b..f0610a26 100644
+--- a/xarray/core/missing.py
++++ b/xarray/core/missing.py
+@@ -248,10 +248,9 @@ def get_clean_interp_index(
+         axis = arr.get_axis_num(dim)
+         return np.arange(arr.shape[axis], dtype=np.float64)
+ 
+-    if use_coordinate is True:
++    if use_coordinate is True and dim in arr.coords:
+         index = arr.get_index(dim)
+-
+-    else:  # string
++    elif isinstance(use_coordinate, str) and use_coordinate in arr.coords:
+         index = arr.coords[use_coordinate]
+         if index.ndim != 1:
+             raise ValueError(
+@@ -259,6 +258,11 @@ def get_clean_interp_index(
+                 f"{use_coordinate} is {index.ndim}D."
+             )
+         index = index.to_index()
++    else:
++        # If the dimension is not in the coordinates, create a new index
++        axis = arr.get_axis_num(dim)
++        index = np.arange(arr.shape[axis], dtype=np.float64)
++        return Variable([dim], index)
+ 
+     # TODO: index.name is None for multiindexes
+     # set name for nice error messages below

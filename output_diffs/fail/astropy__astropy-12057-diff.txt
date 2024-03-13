@@ -1,0 +1,48 @@
+diff --git a/astropy/nddata/nduncertainty.py b/astropy/nddata/nduncertainty.py
+index 05ce66c559..ce45db04ba 100644
+--- a/astropy/nddata/nduncertainty.py
++++ b/astropy/nddata/nduncertainty.py
+@@ -933,3 +933,43 @@ class InverseVariance(_VariancePropagationMixin, NDUncertainty):
+ 
+     def _data_unit_to_uncertainty_unit(self, value):
+         return 1 / value ** 2
++
++def std_to_var(obj):
++    if not isinstance(obj, StdDevUncertainty):
++        raise TypeError("Input must be a StdDevUncertainty instance")
++    return VarianceUncertainty(obj.array ** 2, unit=obj.unit ** 2)
++
++def var_to_invvar(obj):
++    if not isinstance(obj, VarianceUncertainty):
++        raise TypeError("Input must be a VarianceUncertainty instance")
++    if obj.unit is None:
++        return InverseVariance(1 / obj.array.astype(float))
++    else:
++        return InverseVariance(1 / obj.array.astype(float), unit=obj.unit ** -1)
++
++def invvar_to_var(obj):
++    if not isinstance(obj, InverseVariance):
++        raise TypeError("Input must be an InverseVariance instance")
++    return VarianceUncertainty(obj.array ** -1, unit=obj.unit ** -1)
++
++def var_to_std(obj):
++    if not isinstance(obj, VarianceUncertainty):
++        raise TypeError("Input must be a VarianceUncertainty instance")
++    return StdDevUncertainty(obj.array ** 0.5, unit=obj.unit ** 0.5)
++
++FUNC_MAP = {
++    (StdDevUncertainty, VarianceUncertainty): std_to_var,
++    (StdDevUncertainty, InverseVariance): lambda x: var_to_invvar(std_to_var(x)),
++    (VarianceUncertainty, StdDevUncertainty): var_to_std,
++    (VarianceUncertainty, InverseVariance): var_to_invvar,
++    (InverseVariance, StdDevUncertainty): lambda x: var_to_std(invvar_to_var(x)),
++    (InverseVariance, VarianceUncertainty): invvar_to_var,
++    (StdDevUncertainty, StdDevUncertainty): lambda x: x,
++    (VarianceUncertainty, VarianceUncertainty): lambda x: x,
++    (InverseVariance, InverseVariance): lambda x: x,
++}
++
++def convert_uncertainties(obj, new_class):
++    if (type(obj), new_class) not in FUNC_MAP:
++        raise ValueError("Conversion not supported")
++    return FUNC_MAP[(type(obj), new_class)](obj)

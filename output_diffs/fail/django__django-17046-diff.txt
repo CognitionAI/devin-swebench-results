@@ -1,0 +1,17 @@
+diff --git a/django/contrib/admin/options.py b/django/contrib/admin/options.py
+index b0635669e9..562af21f52 100644
+--- a/django/contrib/admin/options.py
++++ b/django/contrib/admin/options.py
+@@ -1178,6 +1178,12 @@ class ModelAdmin(BaseModelAdmin):
+                 lookup_spawns_duplicates(self.opts, search_spec)
+                 for search_spec in orm_lookups
+             )
++
++            # Check if the 'action' parameter is 'delete_selected' in the request POST data
++            if 'action' in request.POST and request.POST['action'] == 'delete_selected':
++                # Remove 'distinct()' if it has been applied
++                queryset = queryset.distinct(False)
++
+         return queryset, may_have_duplicates
+ 
+     def get_preserved_filters(self, request):

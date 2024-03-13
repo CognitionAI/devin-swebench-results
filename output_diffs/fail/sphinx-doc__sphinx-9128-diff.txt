@@ -1,0 +1,237 @@
+diff --git a/setup.py b/setup.py
+index 1c14ff1eb..0abe29e56 100644
+--- a/setup.py
++++ b/setup.py
+@@ -21,7 +21,7 @@ install_requires = [
+     'sphinxcontrib-htmlhelp',
+     'sphinxcontrib-serializinghtml',
+     'sphinxcontrib-qthelp',
+-    'Jinja2>=2.3',
++    'Jinja2<3.1',
+     'Pygments>=2.0',
+     'docutils>=0.14,<0.17',
+     'snowballstemmer>=1.1',
+diff --git a/sphinx/cmd/build.py b/sphinx/cmd/build.py
+index 32a89eb29..daf44eb9e 100644
+--- a/sphinx/cmd/build.py
++++ b/sphinx/cmd/build.py
+@@ -201,6 +201,8 @@ def make_main(argv: List[str] = sys.argv[1:]) -> int:
+ 
+ def build_main(argv: List[str] = sys.argv[1:]) -> int:
+     """Sphinx build "main" command-line entry."""
++    import logging
++    logging.basicConfig(level=logging.DEBUG)
+ 
+     parser = get_parser()
+     args = parser.parse_args(argv)
+diff --git a/sphinx/domains/python.py b/sphinx/domains/python.py
+index dbb315e6e..8f3a707d2 100644
+--- a/sphinx/domains/python.py
++++ b/sphinx/domains/python.py
+@@ -1145,10 +1145,12 @@ class PythonDomain(Domain):
+         """
+         if name in self.objects:
+             other = self.objects[name]
+-            logger.warning(__('duplicate object description of %s, '
+-                              'other instance in %s, use :noindex: for one of them'),
+-                           name, other.docname, location=location)
+-        self.objects[name] = ObjectEntry(self.env.docname, node_id, objtype, canonical)
++            if other.canonical:
++                logger.warning(__('duplicate object description of %s, '
++                                 'other instance in %s, use :noindex: for one of them'),
++                               name, other.docname, location=location)
++        else:
++            self.objects[name] = ObjectEntry(self.env.docname, node_id, objtype, canonical)
+ 
+     @property
+     def modules(self) -> Dict[str, ModuleEntry]:
+diff --git a/sphinx/ext/autodoc/__init__.py b/sphinx/ext/autodoc/__init__.py
+index c92709deb..0285070a9 100644
+--- a/sphinx/ext/autodoc/__init__.py
++++ b/sphinx/ext/autodoc/__init__.py
+@@ -178,7 +178,7 @@ def merge_members_option(options: Dict) -> None:
+ 
+ # Some useful event listener factories for autodoc-process-docstring.
+ 
+-def cut_lines(pre: int, post: int = 0, what: str = None) -> Callable:
++def cut_lines(pre: int, post: int = 0, what: str = '') -> Callable:
+     """Return a listener that removes the first *pre* and last *post*
+     lines of every docstring.  If *what* is a sequence of strings,
+     only docstrings of a type in *what* will be processed.
+@@ -414,6 +414,7 @@ class Documenter:
+ 
+         Returns True if successful, False if an error occurred.
+         """
++        logger.debug('[autodoc] import %s from %s', '.'.join(self.objpath), self.modname)
+         with mock(self.config.autodoc_mock_imports):
+             try:
+                 ret = import_object(self.modname, self.objpath, self.objtype,
+@@ -422,6 +423,7 @@ class Documenter:
+                 self.module, self.parent, self.object_name, self.object = ret
+                 if ismock(self.object):
+                     self.object = undecorate(self.object)
++                logger.debug('[autodoc] => %r', self.object)
+                 return True
+             except ImportError as exc:
+                 if raiseerror:
+@@ -518,6 +520,7 @@ class Documenter:
+ 
+     def add_directive_header(self, sig: str) -> None:
+         """Add the directive header and options to the generated content."""
++        logger.debug('[autodoc] adding directive header for %s', self.fullname)
+         domain = getattr(self, 'domain', 'py')
+         directive = getattr(self, 'directivetype', self.objtype)
+         name = self.format_name()
+@@ -1374,6 +1377,139 @@ class FunctionDocumenter(DocstringSignatureMixin, ModuleLevelDocumenter):  # typ
+                 return
+ 
+ 
++class DocstringStripSignatureMixin(DocstringSignatureMixin):
++    """
++    Mixin for AttributeDocumenter to provide the
++    feature of stripping any function signature from the docstring.
++    """
++    def format_signature(self, **kwargs: Any) -> str:
++        if self.args is None and self.config.autodoc_docstring_signature:  # type: ignore
++            # only act if a signature is not explicitly given already, and if
++            # the feature is enabled
++            result = self._find_signature()
++            if result is not None:
++                # Discarding _args is a only difference with
++                # DocstringSignatureMixin.format_signature.
++                # Documenter.format_signature use self.args value to format.
++                _args, self.retann = result
++        return super().format_signature(**kwargs)
++
++
++class FunctionDocumenter(DocstringSignatureMixin, ModuleLevelDocumenter):  # type: ignore
++    """
++    Specialized Documenter subclass for functions.
++    """
++    objtype = 'function'
++    member_order = 30
++
++    @classmethod
++    def can_document_member(cls, member: Any, membername: str, isattr: bool, parent: Any
++                            ) -> bool:
++        # supports functions, builtins and bound methods exported at the module level
++        return (inspect.isfunction(member) or inspect.isbuiltin(member) or
++                (inspect.isroutine(member) and isinstance(parent, ModuleDocumenter)))
++
++    def format_args(self, **kwargs: Any) -> str:
++        if self.config.autodoc_typehints in ('none', 'description'):
++            kwargs.setdefault('show_annotation', False)
++
++        try:
++            self.env.app.emit('autodoc-before-process-signature', self.object, False)
++            sig = inspect.signature(self.object, type_aliases=self.config.autodoc_type_aliases)
++            args = stringify_signature(sig, **kwargs)
++        except TypeError as exc:
++            logger.warning(__("Failed to get a function signature for %s: %s"),
++                           self.fullname, exc)
++            return None
++        except ValueError:
++            args = ''
++
++        if self.config.strip_signature_backslash:
++            # escape backslashes for reST
++            args = args.replace('\\', '\\\\')
++        return args
++
++    def document_members(self, all_members: bool = False) -> None:
++        pass
++
++    def add_directive_header(self, sig: str) -> None:
++        sourcename = self.get_sourcename()
++        super().add_directive_header(sig)
++
++        if inspect.iscoroutinefunction(self.object):
++            self.add_line('   :async:', sourcename)
++
++    def format_signature(self, **kwargs: Any) -> str:
++        sigs = []
++        if (self.analyzer and
++                '.'.join(self.objpath) in self.analyzer.overloads and
++                self.config.autodoc_typehints == 'signature'):
++            # Use signatures for overloaded functions instead of the implementation function.
++            overloaded = True
++        else:
++            overloaded = False
++            sig = super().format_signature(**kwargs)
++            sigs.append(sig)
++
++        if inspect.is_singledispatch_function(self.object):
++            # append signature of singledispatch'ed functions
++            for typ, func in self.object.registry.items():
++                if typ is object:
++                    pass  # default implementation. skipped.
++                else:
++                    self.annotate_to_first_argument(func, typ)
++
++                    documenter = FunctionDocumenter(self.directive, '')
++                    documenter.object = func
++                    documenter.objpath = [None]
++                    sigs.append(documenter.format_signature())
++        if overloaded:
++            actual = inspect.signature(self.object,
++                                       type_aliases=self.config.autodoc_type_aliases)
++            __globals__ = safe_getattr(self.object, '__globals__', {})
++            for overload in self.analyzer.overloads.get('.'.join(self.objpath)):
++                overload = self.merge_default_value(actual, overload)
++                overload = evaluate_signature(overload, __globals__,
++                                              self.config.autodoc_type_aliases)
++
++                sig = stringify_signature(overload, **kwargs)
++                sigs.append(sig)
++
++        return "\n".join(sigs)
++
++    def merge_default_value(self, actual: Signature, overload: Signature) -> Signature:
++        """Merge default values of actual implementation to the overload variants."""
++        parameters = list(overload.parameters.values())
++        for i, param in enumerate(parameters):
++            actual_param = actual.parameters.get(param.name)
++            if actual_param and param.default == '...':
++                parameters[i] = param.replace(default=actual_param.default)
++
++        return overload.replace(parameters=parameters)
++
++    def annotate_to_first_argument(self, func: Callable, typ: Type) -> None:
++        """Annotate type hint to the first argument of function if needed."""
++        try:
++            sig = inspect.signature(func, type_aliases=self.config.autodoc_type_aliases)
++        except TypeError as exc:
++            logger.warning(__("Failed to get a function signature for %s: %s"),
++                           self.fullname, exc)
++            return
++        except ValueError:
++            return
++        if len(sig.parameters) == 0:
++            return
++
++        params = list(sig.parameters.values())
++        if params[0].annotation is Parameter.empty:
++            params[0] = params[0].replace(annotation=typ)
++            try:
++                func.__signature__ = sig.replace(parameters=params)  # type: ignore
++            except (AttributeError, TypeError):
++                # failed to update signature (ex. built-in or extension types)
++                return
++
++
+ class DecoratorDocumenter(FunctionDocumenter):
+     """
+     Specialized Documenter subclass for decorator functions.
+diff --git a/tox.ini b/tox.ini
+index a363e187f..3b8bc12d0 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -27,7 +27,7 @@ setenv =
+     PYTHONWARNINGS = all,ignore::ImportWarning:importlib._bootstrap_external,ignore::DeprecationWarning:site,ignore::DeprecationWarning:distutils,ignore::DeprecationWarning:pip._vendor.packaging.version
+     PYTEST_ADDOPTS = {env:PYTEST_ADDOPTS:} --color yes
+ commands=
+-    python -X dev -m pytest --durations 25 {posargs}
++    python -X dev -m pytest -rA --durations 25 {posargs}
+ 
+ [testenv:flake8]
+ basepython = python3

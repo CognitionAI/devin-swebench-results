@@ -1,0 +1,201 @@
+diff --git a/astropy/modeling/bounding_box.py b/astropy/modeling/bounding_box.py
+index 3f93775f75..1b3fb2658f 100644
+--- a/astropy/modeling/bounding_box.py
++++ b/astropy/modeling/bounding_box.py
+@@ -186,7 +186,7 @@ class _BoundingDomain(abc.ABC):
+         on the inputs and returns a complete output.
+     """
+ 
+-    def __init__(self, model, ignored: List[int] = None, order: str = 'C'):
++    def __init__(self, model, ignored: List[int] = [], order: str = 'C'):
+         self._model = model
+         self._ignored = self._validate_ignored(ignored)
+         self._order = self._get_order(order)
+@@ -203,14 +203,11 @@ class _BoundingDomain(abc.ABC):
+     def ignored(self) -> List[int]:
+         return self._ignored
+ 
+-    def _get_order(self, order: str = None) -> str:
++    def _get_order(self, order: str = 'C') -> str:
+         """
+         Get if bounding_box is C/python ordered or Fortran/mathematically
+         ordered
+         """
+-        if order is None:
+-            order = self._order
+-
+         if order not in ('C', 'F'):
+             raise ValueError("order must be either 'C' (C/python order) or "
+                              f"'F' (Fortran/mathematical order), got: {order}.")
+@@ -577,7 +574,7 @@ class ModelBoundingBox(_BoundingDomain):
+     """
+ 
+     def __init__(self, intervals: Dict[int, _Interval], model,
+-                 ignored: List[int] = None, order: str = 'C'):
++                 ignored: List[int] = [], order: str = 'C'):
+         super().__init__(model, ignored, order)
+ 
+         self._intervals = {}
+@@ -644,7 +641,7 @@ class ModelBoundingBox(_BoundingDomain):
+         else:
+             return self._intervals[self._get_index(key)]
+ 
+-    def bounding_box(self, order: str = None):
++    def bounding_box(self, order: str = 'C'):
+         """
+         Return the old tuple of tuples representation of the bounding_box
+             order='C' corresponds to the old bounding_box ordering
+@@ -694,7 +691,7 @@ class ModelBoundingBox(_BoundingDomain):
+         for key, value in bounding_box.items():
+             self[key] = value
+ 
+-    def _validate_sequence(self, bounding_box, order: str = None):
++    def _validate_sequence(self, bounding_box, order: str = 'C'):
+         """Validate passing tuple of tuples representation (or related) and setting them."""
+         order = self._get_order(order)
+         if order == 'C':
+@@ -713,7 +710,7 @@ class ModelBoundingBox(_BoundingDomain):
+         else:
+             return 0
+ 
+-    def _validate_iterable(self, bounding_box, order: str = None):
++    def _validate_iterable(self, bounding_box, order: str = 'C'):
+         """Validate and set any iterable representation"""
+         if len(bounding_box) != self._n_inputs:
+             raise ValueError(f"Found {len(bounding_box)} intervals, "
+@@ -724,7 +721,7 @@ class ModelBoundingBox(_BoundingDomain):
+         else:
+             self._validate_sequence(bounding_box, order)
+ 
+-    def _validate(self, bounding_box, order: str = None):
++    def _validate(self, bounding_box, order: str = 'C'):
+         """Validate and set any representation"""
+         if self._n_inputs == 1 and not isinstance(bounding_box, dict):
+             self[0] = bounding_box
+@@ -732,8 +729,7 @@ class ModelBoundingBox(_BoundingDomain):
+             self._validate_iterable(bounding_box, order)
+ 
+     @classmethod
+-    def validate(cls, model, bounding_box,
+-                 ignored: list = None, order: str = 'C', _preserve_ignore: bool = False, **kwargs):
++    def validate(cls, model, bounding_box, ignored: list = [], order: str = 'C', _preserve_ignore: bool = False, **kwargs):
+         """
+         Construct a valid bounding box for a model.
+ 
+@@ -753,6 +749,9 @@ class ModelBoundingBox(_BoundingDomain):
+                 ignored = bounding_box.ignored
+             bounding_box = bounding_box.intervals
+ 
++        if ignored is None:
++            ignored = []
++
+         new = cls({}, model, ignored=ignored, order=order)
+         new._validate(bounding_box)
+ 
+@@ -789,7 +788,7 @@ class ModelBoundingBox(_BoundingDomain):
+     def dimension(self):
+         return len(self)
+ 
+-    def domain(self, resolution, order: str = None):
++    def domain(self, resolution, order: str = 'C'):
+         inputs = self._model.inputs
+         order = self._get_order(order)
+         if order == 'C':
+@@ -815,8 +814,6 @@ class ModelBoundingBox(_BoundingDomain):
+         outside_index : bool-numpy array
+             True  -> position outside bounding_box
+             False -> position inside  bounding_box
+-        all_out : bool
+-            if all of the inputs are outside the bounding_box
+         """
+         all_out = False
+ 
+@@ -1062,7 +1059,7 @@ class _SelectorArguments(tuple):
+ 
+     _kept_ignore = None
+ 
+-    def __new__(cls, input_: Tuple[_SelectorArgument], kept_ignore: List = None):
++    def __new__(cls, input_: Tuple[_SelectorArgument], kept_ignore: List = []):
+         self = super().__new__(cls, input_)
+ 
+         if kept_ignore is None:
+@@ -1094,17 +1091,12 @@ class _SelectorArguments(tuple):
+     def ignore(self):
+         """Get the list of ignored inputs"""
+         ignore = [argument.index for argument in self if argument.ignore]
+-        ignore.extend(self._kept_ignore)
+-
++        if self._kept_ignore is not None:
++            ignore.extend(self._kept_ignore)
+         return ignore
+ 
+-    @property
+-    def kept_ignore(self):
+-        """The arguments to persist in ignoring"""
+-        return self._kept_ignore
+-
+     @classmethod
+-    def validate(cls, model, arguments, kept_ignore: List=None):
++    def validate(cls, model, arguments, kept_ignore: List = []):
+         """
+         Construct a valid Selector description for a CompoundBoundingBox.
+ 
+@@ -1291,7 +1283,7 @@ class CompoundBoundingBox(_BoundingDomain):
+     """
+     def __init__(self, bounding_boxes: Dict[Any, ModelBoundingBox], model,
+                  selector_args: _SelectorArguments, create_selector: Callable = None,
+-                 ignored: List[int] = None, order: str = 'C'):
++                 ignored: List[int] = [], order: str = 'C'):
+         super().__init__(model, ignored, order)
+ 
+         self._create_selector = create_selector
+@@ -1300,35 +1292,19 @@ class CompoundBoundingBox(_BoundingDomain):
+         self._bounding_boxes = {}
+         self._validate(bounding_boxes)
+ 
+-    def copy(self):
++    def copy(self, ignored=None):
+         bounding_boxes = {selector: bbox.copy(self.selector_args.ignore)
+                           for selector, bbox in self._bounding_boxes.items()}
+ 
++        if ignored is None:
++            ignored = self._ignored.copy()
++
+         return CompoundBoundingBox(bounding_boxes, self._model,
+                                    selector_args=self._selector_args,
+                                    create_selector=copy.deepcopy(self._create_selector),
++                                   ignored=ignored,
+                                    order=self._order)
+ 
+-    def __repr__(self):
+-        parts = ['CompoundBoundingBox(',
+-                 '    bounding_boxes={']
+-        # bounding_boxes
+-        for _selector, bbox in self._bounding_boxes.items():
+-            bbox_repr = bbox.__repr__().split('\n')
+-            parts.append(f"        {_selector} = {bbox_repr.pop(0)}")
+-            for part in bbox_repr:
+-                parts.append(f"            {part}")
+-        parts.append('    }')
+-
+-        # selector_args
+-        selector_args_repr = self.selector_args.pretty_repr(self._model).split('\n')
+-        parts.append(f"    selector_args = {selector_args_repr.pop(0)}")
+-        for part in selector_args_repr:
+-            parts.append(f"        {part}")
+-        parts.append(')')
+-
+-        return '\n'.join(parts)
+-
+     @property
+     def bounding_boxes(self) -> Dict[Any, ModelBoundingBox]:
+         return self._bounding_boxes
+@@ -1383,7 +1359,7 @@ class CompoundBoundingBox(_BoundingDomain):
+ 
+     @classmethod
+     def validate(cls, model, bounding_box: dict, selector_args=None, create_selector=None,
+-                 ignored: list = None, order: str = 'C', _preserve_ignore: bool = False, **kwarg):
++                 ignored: list = [], order: str = 'C', _preserve_ignore: bool = False, **kwarg):
+         """
+         Construct a valid compound bounding box for a model.
+ 

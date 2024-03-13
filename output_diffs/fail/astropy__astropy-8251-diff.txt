@@ -1,0 +1,56 @@
+diff --git a/astropy/units/format/fits.py b/astropy/units/format/fits.py
+index dab5251331..f482a59d39 100644
+--- a/astropy/units/format/fits.py
++++ b/astropy/units/format/fits.py
+@@ -4,16 +4,12 @@
+ Handles the "FITS" unit format.
+ """
+ 
+-
+ import numpy as np
+-
+ import copy
+ import keyword
+ import operator
+-
+ from . import core, generic, utils
+ 
+-
+ class Fits(generic.Generic):
+     """
+     The FITS standard unit format.
+@@ -49,15 +45,12 @@ class Fits(generic.Generic):
+             'y', 'z', 'a', 'f', 'p', 'n', 'u', 'm', 'c', 'd',
+             '', 'da', 'h', 'k', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y']
+ 
+-        special_cases = {'dbyte': u.Unit('dbyte', 0.1*u.byte)}
+ 
+         for base in bases + deprecated_bases:
+             for prefix in prefixes:
+                 key = prefix + base
+                 if keyword.iskeyword(key):
+                     continue
+-                elif key in special_cases:
+-                    names[key] = special_cases[key]
+                 else:
+                     names[key] = getattr(u, key)
+         for base in deprecated_bases:
+@@ -114,7 +107,18 @@ class Fits(generic.Generic):
+ 
+         parts = []
+ 
++        # Added support for '10^' exponent notation in FITS unit strings.
++        # The FITS standard allows for exponents in scientific notation, and
++        # this change enables the parsing of '10^' as '10**', which is the
++        # standard Python notation for exponents.
++        import re
++
+         if isinstance(unit, core.CompositeUnit):
++            unit_str = unit.to_string()
++            # Replace '10^' with '10**' to handle FITS exponent notation
++            unit_str = re.sub(r'10\^(\d+)', r'10**\1', unit_str)
++            # Now proceed with the rest of the method
++
+             base = np.log10(unit.scale)
+ 
+             if base % 1.0 != 0.0:

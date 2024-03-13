@@ -1,0 +1,22 @@
+diff --git a/xarray/core/dataarray.py b/xarray/core/dataarray.py
+index 232fb861..104b782f 100644
+--- a/xarray/core/dataarray.py
++++ b/xarray/core/dataarray.py
+@@ -20,6 +20,7 @@ from typing import (
+ )
+ 
+ import numpy as np
++from numpy.polynomial.polynomial import Polynomial
+ import pandas as pd
+ 
+ from ..plot.plot import _PlotMethods
+@@ -263,6 +264,9 @@ class DataArray(AbstractArray, DataWithCoords):
+ 
+     dt = property(CombinedDatetimelikeAccessor)
+ 
++    import numpy as np
++    import xarray as xr
++
+     def __init__(
+         self,
+         data: Any = dtypes.NA,

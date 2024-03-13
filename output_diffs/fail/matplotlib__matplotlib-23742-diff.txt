@@ -1,0 +1,40 @@
+diff --git a/lib/matplotlib/backends/backend_nbagg.py b/lib/matplotlib/backends/backend_nbagg.py
+index 712f457359..34c1be6047 100644
+--- a/lib/matplotlib/backends/backend_nbagg.py
++++ b/lib/matplotlib/backends/backend_nbagg.py
+@@ -65,6 +65,8 @@ class FigureManagerNbAgg(FigureManagerWebAgg):
+     _toolbar2_class = ToolbarCls = NavigationIPy
+ 
+     def __init__(self, canvas, num):
++        print("Initializing FigureManagerNbAgg with canvas:", canvas)
++        print("Toolbar class type:", self._toolbar2_class)
+         self._shown = False
+         super().__init__(canvas, num)
+ 
+diff --git a/lib/matplotlib/backends/backend_webagg_core.py b/lib/matplotlib/backends/backend_webagg_core.py
+index 141dbdcc2e..e0526cf6cc 100644
+--- a/lib/matplotlib/backends/backend_webagg_core.py
++++ b/lib/matplotlib/backends/backend_webagg_core.py
+@@ -26,6 +26,10 @@ from matplotlib.backends import backend_agg
+ from matplotlib.backend_bases import (
+     _Backend, KeyEvent, LocationEvent, MouseEvent, ResizeEvent)
+ 
++import matplotlib
++if matplotlib.__version__ < "3.6":
++    from ipympl.backend_nbagg import Toolbar
++
+ _log = logging.getLogger(__name__)
+ 
+ _SPECIAL_KEYS_LUT = {'Alt': 'alt',
+@@ -427,7 +431,10 @@ class NavigationToolbar2WebAgg(backend_bases.NavigationToolbar2):
+ 
+ 
+ class FigureManagerWebAgg(backend_bases.FigureManagerBase):
+-    _toolbar2_class = ToolbarCls = NavigationToolbar2WebAgg
++    if matplotlib.__version__ < "3.6":
++        _toolbar2_class = ToolbarCls = Toolbar
++    else:
++        _toolbar2_class = ToolbarCls = NavigationToolbar2WebAgg
+ 
+     def __init__(self, canvas, num):
+         self.web_sockets = set()

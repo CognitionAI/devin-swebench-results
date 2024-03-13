@@ -1,0 +1,14 @@
+diff --git a/django/db/migrations/operations/fields.py b/django/db/migrations/operations/fields.py
+index 8e494fd595..2d35117dbd 100644
+--- a/django/db/migrations/operations/fields.py
++++ b/django/db/migrations/operations/fields.py
+@@ -239,6 +239,9 @@ class AlterField(FieldOperation):
+             from_model = from_state.apps.get_model(app_label, self.model_name)
+             from_field = from_model._meta.get_field(self.name)
+             to_field = to_model._meta.get_field(self.name)
++            # Check if db_column is the only difference
++            if from_field.deconstruct()[1:] == to_field.deconstruct()[1:] and from_field.db_column != to_field.db_column:
++                return
+             if not self.preserve_default:
+                 to_field.default = self.field.default
+             schema_editor.alter_field(from_model, from_field, to_field)

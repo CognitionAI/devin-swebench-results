@@ -1,0 +1,21 @@
+diff --git a/django/template/defaultfilters.py b/django/template/defaultfilters.py
+index 1c844580c6..89b0684d33 100644
+--- a/django/template/defaultfilters.py
++++ b/django/template/defaultfilters.py
+@@ -671,9 +671,16 @@ def unordered_list(value, autoescape=True):
+ # INTEGERS        #
+ ###################
+ 
++from django.utils.functional import Promise
++
+ @register.filter(is_safe=False)
+ def add(value, arg):
+     """Add the arg to the value."""
++    if isinstance(value, Promise):
++        value = str(value)
++    if isinstance(arg, Promise):
++        arg = str(arg)
++
+     try:
+         return int(value) + int(arg)
+     except (ValueError, TypeError):

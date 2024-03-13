@@ -1,0 +1,24 @@
+diff --git a/django/db/backends/sqlite3/schema.py b/django/db/backends/sqlite3/schema.py
+index f0c81c123b..acf75182d6 100644
+--- a/django/db/backends/sqlite3/schema.py
++++ b/django/db/backends/sqlite3/schema.py
+@@ -1,4 +1,5 @@
+ import copy
++import sqlite3
+ from decimal import Decimal
+ 
+ from django.apps.registry import Apps
+@@ -40,13 +41,6 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
+         # The backend "mostly works" without this function and there are use
+         # cases for compiling Python without the sqlite3 libraries (e.g.
+         # security hardening).
+-        try:
+-            import sqlite3
+-            value = sqlite3.adapt(value)
+-        except ImportError:
+-            pass
+-        except sqlite3.ProgrammingError:
+-            pass
+         # Manual emulation of SQLite parameter quoting
+         if isinstance(value, bool):
+             return str(int(value))

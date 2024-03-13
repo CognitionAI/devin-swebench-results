@@ -1,0 +1,78 @@
+diff --git a/sphinx/cmd/quickstart.py b/sphinx/cmd/quickstart.py
+index a40a21073..82d564b71 100644
+--- a/sphinx/cmd/quickstart.py
++++ b/sphinx/cmd/quickstart.py
+@@ -129,9 +129,9 @@ def ok(x: str) -> str:
+     return x
+ 
+ 
+-def do_prompt(text: str, default: str = None, validator: Callable[[str], Any] = nonempty) -> Union[str, bool]:  # NOQA
++def do_prompt(text: str, default: str = '', validator: Callable[[str], Any] = nonempty) -> str:  # NOQA
+     while True:
+-        if default is not None:
++        if default:
+             prompt = PROMPT_PREFIX + '%s [%s]: ' % (text, default)
+         else:
+             prompt = PROMPT_PREFIX + text + ': '
+@@ -222,10 +222,13 @@ def ask_user(d: Dict) -> None:
+                       'selected root path.')))
+         print(__('sphinx-quickstart will not overwrite existing Sphinx projects.'))
+         print()
+-        d['path'] = do_prompt(__('Please enter a new root path (or just Enter to exit)'),
+-                              '', is_path)
+-        if not d['path']:
+-            sys.exit(1)
++        new_path = do_prompt(__('Please enter a new root path (or just Enter to exit)'), '', allow_empty)
++        if new_path == '':
++            sys.exit(0)
++        try:
++            d['path'] = is_path(new_path)
++        except ValidationError:
++            print(red('* ' + __('Please enter a valid path name.')))
+ 
+     if 'sep' not in d:
+         print()
+@@ -320,8 +323,7 @@ def ask_user(d: Dict) -> None:
+     print()
+ 
+ 
+-def generate(d: Dict, overwrite: bool = True, silent: bool = False, templatedir: str = None
+-             ) -> None:
++def generate(d: Dict, overwrite: bool = True, silent: bool = False, templatedir: str = '') -> None:
+     """Generate project based on values in *d*."""
+     template = QuickstartRenderer(templatedir=templatedir)
+ 
+@@ -356,7 +358,7 @@ def generate(d: Dict, overwrite: bool = True, silent: bool = False, templatedir:
+     ensuredir(path.join(srcdir, d['dot'] + 'templates'))
+     ensuredir(path.join(srcdir, d['dot'] + 'static'))
+ 
+-    def write_file(fpath: str, content: str, newline: str = None) -> None:
++    def write_file(fpath: str, content: str, newline: str = '') -> None:
+         if overwrite or not path.isfile(fpath):
+             if 'quiet' not in d:
+                 print(__('Creating file %s.') % fpath)
+@@ -547,7 +549,10 @@ def main(argv: List[str] = sys.argv[1:]) -> int:
+     try:
+         args = parser.parse_args(argv)
+     except SystemExit as err:
+-        return err.code
++        if isinstance(err.code, int):
++            return err.code
++        else:
++            return 1  # Default exit code
+ 
+     d = vars(args)
+     # delete None or False value
+diff --git a/tox.ini b/tox.ini
+index a363e187f..3b8bc12d0 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -27,7 +27,7 @@ setenv =
+     PYTHONWARNINGS = all,ignore::ImportWarning:importlib._bootstrap_external,ignore::DeprecationWarning:site,ignore::DeprecationWarning:distutils,ignore::DeprecationWarning:pip._vendor.packaging.version
+     PYTEST_ADDOPTS = {env:PYTEST_ADDOPTS:} --color yes
+ commands=
+-    python -X dev -m pytest --durations 25 {posargs}
++    python -X dev -m pytest -rA --durations 25 {posargs}
+ 
+ [testenv:flake8]
+ basepython = python3

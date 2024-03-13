@@ -1,0 +1,16 @@
+diff --git a/lib/matplotlib/backends/backend_agg.py b/lib/matplotlib/backends/backend_agg.py
+index 0fe0fc40c0..4c15e7f7a8 100644
+--- a/lib/matplotlib/backends/backend_agg.py
++++ b/lib/matplotlib/backends/backend_agg.py
+@@ -518,7 +518,10 @@ class FigureCanvasAgg(FigureCanvasBase):
+     # print_figure(), and the latter ensures that `self.figure.dpi` already
+     # matches the dpi kwarg (if any).
+ 
+-    def print_jpg(self, filename_or_obj, *, pil_kwargs=None):
++    def print_jpg(self, filename_or_obj, *, pil_kwargs=None, metadata=None):
++        if metadata is not None:
++            raise ValueError("The 'metadata' argument is not supported for JPEG files. "
++                             "Please remove the 'metadata' argument or use a different file format that supports metadata.")
+         # savefig() has already applied savefig.facecolor; we now set it to
+         # white to make imsave() blend semi-transparent figures against an
+         # assumed white background.

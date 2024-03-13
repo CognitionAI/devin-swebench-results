@@ -1,0 +1,37 @@
+diff --git a/django/db/models/fields/related_descriptors.py b/django/db/models/fields/related_descriptors.py
+index 6e9f7bccbf..b5beaaf17f 100644
+--- a/django/db/models/fields/related_descriptors.py
++++ b/django/db/models/fields/related_descriptors.py
+@@ -647,15 +647,6 @@ def create_reverse_many_to_one_manager(superclass, rel):
+ 
+             self.core_filters = {self.field.name: instance}
+ 
+-            # Even if this relation is not to pk, we require still pk value.
+-            # The wish is that the instance has been already saved to DB,
+-            # although having a pk value isn't a guarantee of that.
+-            if self.instance.pk is None:
+-                raise ValueError(
+-                    f"{instance.__class__.__name__!r} instance needs to have a primary "
+-                    f"key value before this relationship can be used."
+-                )
+-
+         def __call__(self, *, manager):
+             manager = getattr(self.model, manager)
+             manager_class = create_reverse_many_to_one_manager(manager.__class__, rel)
+@@ -1001,15 +992,7 @@ def create_forward_many_to_many_manager(superclass, rel, reverse):
+                     "this many-to-many relationship can be used."
+                     % (instance, self.pk_field_names[self.source_field_name])
+                 )
+-            # Even if this relation is not to pk, we require still pk value.
+-            # The wish is that the instance has been already saved to DB,
+-            # although having a pk value isn't a guarantee of that.
+-            if instance.pk is None:
+-                raise ValueError(
+-                    "%r instance needs to have a primary key value before "
+-                    "a many-to-many relationship can be used."
+-                    % instance.__class__.__name__
+-                )
++
+ 
+         def __call__(self, *, manager):
+             manager = getattr(self.model, manager)

@@ -1,0 +1,19 @@
+diff --git a/src/_pytest/config/__init__.py b/src/_pytest/config/__init__.py
+index f4818c861..a5143785a 100644
+--- a/src/_pytest/config/__init__.py
++++ b/src/_pytest/config/__init__.py
+@@ -1688,10 +1688,11 @@ def apply_warning_filters(
+     config_filters: Iterable[str], cmdline_filters: Iterable[str]
+ ) -> None:
+     """Applies pytest-configured filters to the warnings module"""
+-    # Filters should have this precedence: cmdline options, config.
+-    # Filters should be applied in the inverse order of precedence.
++    # The escape parameter is set to True to ensure that special regex characters
++    # in the warning messages or modules specified in the pytest.ini file are escaped.
++    # This allows the filters to match and suppress the warnings as intended.
+     for arg in config_filters:
+-        warnings.filterwarnings(*parse_warning_filter(arg, escape=False))
++        warnings.filterwarnings(*parse_warning_filter(arg, escape=True))
+ 
+     for arg in cmdline_filters:
+         warnings.filterwarnings(*parse_warning_filter(arg, escape=True))

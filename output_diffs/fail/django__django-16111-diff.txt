@@ -1,0 +1,82 @@
+diff --git a/django/db/models/functions/datetime.py b/django/db/models/functions/datetime.py
+index f833c09973..f6aa74a53f 100644
+--- a/django/db/models/functions/datetime.py
++++ b/django/db/models/functions/datetime.py
+@@ -19,6 +19,7 @@ from django.db.models.lookups import (
+     YearLte,
+ )
+ from django.utils import timezone
++from django.utils.functional import cached_property
+ 
+ 
+ class TimezoneMixin:
+@@ -40,7 +41,6 @@ class TimezoneMixin:
+ 
+ class Extract(TimezoneMixin, Transform):
+     lookup_name = None
+-    output_field = IntegerField()
+ 
+     def __init__(self, expression, lookup_name=None, tzinfo=None, **extra):
+         if self.lookup_name is None:
+@@ -50,6 +50,10 @@ class Extract(TimezoneMixin, Transform):
+         self.tzinfo = tzinfo
+         super().__init__(expression, **extra)
+ 
++    @cached_property
++    def output_field(self):
++        return IntegerField()
++
+     def as_sql(self, compiler, connection):
+         sql, params = compiler.compile(self.lhs)
+         lhs_output_field = self.lhs.output_field
+@@ -213,15 +217,17 @@ ExtractIsoYear.register_lookup(YearLte)
+ 
+ class Now(Func):
+     template = "CURRENT_TIMESTAMP"
+-    output_field = DateTimeField()
+-
+-    def as_postgresql(self, compiler, connection, **extra_context):
+-        # PostgreSQL's CURRENT_TIMESTAMP means "the time at the start of the
+-        # transaction". Use STATEMENT_TIMESTAMP to be cross-compatible with
+-        # other databases.
+-        return self.as_sql(
+-            compiler, connection, template="STATEMENT_TIMESTAMP()", **extra_context
+-        )
++
++    def as_sql(self, compiler, connection, **extra_context):
++        if connection.vendor == 'mysql':
++            self.template = "CURRENT_TIMESTAMP(6)"
++        elif connection.vendor == 'sqlite':
++            self.template = "strftime('%Y-%m-%d %H:%M:%f', 'now')"
++        return super().as_sql(compiler, connection, **extra_context)
++
++    @cached_property
++    def output_field(self):
++        return DateTimeField()
+ 
+ 
+ class TruncBase(TimezoneMixin, Transform):
+@@ -390,7 +396,10 @@ class TruncDay(TruncBase):
+ class TruncDate(TruncBase):
+     kind = "date"
+     lookup_name = "date"
+-    output_field = DateField()
++
++    @cached_property
++    def output_field(self):
++        return DateField()
+ 
+     def as_sql(self, compiler, connection):
+         # Cast to date rather than truncate to date.
+@@ -402,7 +411,10 @@ class TruncDate(TruncBase):
+ class TruncTime(TruncBase):
+     kind = "time"
+     lookup_name = "time"
+-    output_field = TimeField()
++
++    @cached_property
++    def output_field(self):
++        return TimeField()
+ 
+     def as_sql(self, compiler, connection):
+         # Cast to time rather than truncate to time.

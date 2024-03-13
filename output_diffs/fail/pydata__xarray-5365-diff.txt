@@ -1,0 +1,47 @@
+diff --git a/xarray/core/ops.py b/xarray/core/ops.py
+index 8265035a..6b11446c 100644
+--- a/xarray/core/ops.py
++++ b/xarray/core/ops.py
+@@ -330,3 +330,42 @@ class IncludeNumpySameMethods:
+         super().__init_subclass__(**kwargs)
+ 
+         inject_numpy_same(cls)  # some methods not applicable to Dataset objects
++
++
++def cross(a, b, spatial_dim):
++    """
++    Compute the cross product of two DataArray objects along a specified dimension.
++
++    Parameters
++    ----------
++    a : DataArray
++        The first input array.
++    b : DataArray
++        The second input array.
++    spatial_dim : str
++        The name of the dimension along which to compute the cross product.
++
++    Returns
++    -------
++    DataArray
++        The cross product of the input arrays computed along the specified dimension.
++    """
++    from .computation import apply_ufunc
++
++    if spatial_dim not in a.dims or spatial_dim not in b.dims:
++        raise ValueError(f"dimension {spatial_dim} not in both input DataArrays")
++
++    if a.sizes[spatial_dim] != 3 or b.sizes[spatial_dim] != 3:
++        raise ValueError(
++            f"dimension {spatial_dim} does not have size 3 in both input DataArrays"
++        )
++
++    return apply_ufunc(
++        np.cross,
++        a,
++        b,
++        input_core_dims=[[spatial_dim], [spatial_dim]],
++        output_core_dims=[[spatial_dim]],
++        dask="parallelized",
++        output_dtypes=[a.dtype],
++    )

@@ -1,0 +1,43 @@
+diff --git a/sympy/physics/secondquant.py b/sympy/physics/secondquant.py
+index d19ee2fc63..84ff349146 100644
+--- a/sympy/physics/secondquant.py
++++ b/sympy/physics/secondquant.py
+@@ -478,7 +478,7 @@ def __repr__(self):
+         return "CreateBoson(%s)" % self.state
+ 
+     def _latex(self, printer):
+-        return "b^\\dagger_{%s}" % self.state.name
++        return "{b^{\\dagger}}_{%s}" % self.state.name
+ 
+ B = AnnihilateBoson
+ Bd = CreateBoson
+@@ -939,7 +939,7 @@ def __repr__(self):
+         return "CreateFermion(%s)" % self.state
+ 
+     def _latex(self, printer):
+-        return "a^\\dagger_{%s}" % self.state.name
++        return "{a^{\\dagger}}_{%s}" % self.state.name
+ 
+ Fd = CreateFermion
+ F = AnnihilateFermion
+diff --git a/test_latex_rendering.py b/test_latex_rendering.py
+new file mode 100644
+index 0000000000..5a55613dda
+--- /dev/null
++++ b/test_latex_rendering.py
+@@ -0,0 +1,15 @@
++
++import sympy as sp
++from sympy.physics.secondquant import B, Bd, Commutator
++
++# Initialize pretty printing
++sp.init_printing()
++
++# Define a symbol
++a = sp.Symbol('0')
++
++# Create a commutator with double superscripts
++comm = Commutator(Bd(a)**2, B(a))
++
++# Print the Latex representation of the commutator
++print(sp.latex(comm))

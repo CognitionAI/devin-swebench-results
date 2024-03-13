@@ -1,0 +1,77 @@
+diff --git a/doc/usage/extensions/autodoc.rst b/doc/usage/extensions/autodoc.rst
+index c5347f36a..b160949d9 100644
+--- a/doc/usage/extensions/autodoc.rst
++++ b/doc/usage/extensions/autodoc.rst
+@@ -810,3 +810,16 @@ member should be included in the documentation by using the following event:
+       ``inherited_members``, ``undoc_members``, ``show_inheritance`` and
+       ``noindex`` that are true if the flag option of same name was given to the
+       auto directive
++
++Example Function
++----------------
++
++.. code-block:: python
++
++   def example_function(opc_meta: dict[str, str] = None):
++       """
++       This is an example function to test the rendering of the :param directive.
++
++       :param opc_meta: (optional) A dictionary with string keys and values.
++       :type opc_meta: dict(str, str)
++       """
+diff --git a/sphinx/ext/autodoc/typehints.py b/sphinx/ext/autodoc/typehints.py
+index af4b47bb0..eb4f5ed79 100644
+--- a/sphinx/ext/autodoc/typehints.py
++++ b/sphinx/ext/autodoc/typehints.py
+@@ -85,24 +85,12 @@ def modify_field_list(node: nodes.field_list, annotations: Dict[str, str]) -> No
+     fields = cast(Iterable[nodes.field], node)
+     for field in fields:
+         field_name = field[0].astext()
+-        parts = re.split(' +', field_name)
+-        if parts[0] == 'param':
+-            if len(parts) == 2:
+-                # :param xxx:
+-                arg = arguments.setdefault(parts[1], {})
+-                arg['param'] = True
+-            elif len(parts) > 2:
+-                # :param xxx yyy:
+-                name = ' '.join(parts[2:])
+-                arg = arguments.setdefault(name, {})
+-                arg['param'] = True
+-                arg['type'] = True
+-        elif parts[0] == 'type':
+-            name = ' '.join(parts[1:])
++        # Use a regex that matches 'param', 'type', or 'rtype' followed by anything until a colon, accounting for nested parentheses
++        match = re.match(r'(param|type|rtype)\s+(\w+\s*(?:\([^()]*\))?):', field_name)
++        if match:
++            field_type, name = match.groups()
+             arg = arguments.setdefault(name, {})
+-            arg['type'] = True
+-        elif parts[0] == 'rtype':
+-            arguments['return'] = {'type': True}
++            arg[field_type] = True
+ 
+     for name, annotation in annotations.items():
+         if name == 'return':
+@@ -123,7 +111,7 @@ def modify_field_list(node: nodes.field_list, annotations: Dict[str, str]) -> No
+     if 'return' in annotations and 'return' not in arguments:
+         field = nodes.field()
+         field += nodes.field_name('', 'rtype')
+-        field += nodes.field_body('', nodes.paragraph('', annotation))
++        field += nodes.field_body('', nodes.paragraph('', annotations['return']))
+         node += field
+ 
+ 
+diff --git a/tox.ini b/tox.ini
+index a363e187f..3b8bc12d0 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -27,7 +27,7 @@ setenv =
+     PYTHONWARNINGS = all,ignore::ImportWarning:importlib._bootstrap_external,ignore::DeprecationWarning:site,ignore::DeprecationWarning:distutils,ignore::DeprecationWarning:pip._vendor.packaging.version
+     PYTEST_ADDOPTS = {env:PYTEST_ADDOPTS:} --color yes
+ commands=
+-    python -X dev -m pytest --durations 25 {posargs}
++    python -X dev -m pytest -rA --durations 25 {posargs}
+ 
+ [testenv:flake8]
+ basepython = python3

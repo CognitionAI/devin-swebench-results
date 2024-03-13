@@ -1,0 +1,45 @@
+diff --git a/lib/matplotlib/collections.py b/lib/matplotlib/collections.py
+index bf88dd2b68..8866fb3e9c 100644
+--- a/lib/matplotlib/collections.py
++++ b/lib/matplotlib/collections.py
+@@ -623,6 +623,31 @@ class Collection(artist.Artist, cm.ScalarMappable):
+         self._linewidths, self._linestyles = self._bcast_lwls(
+             self._us_lw, self._us_linestyles)
+ 
++    def set_gapcolor(self, c):
++        """
++        Set the gapcolor for the LineCollection.
++
++        Parameters
++        ----------
++        c : color
++            The color of the gaps between lines when a dashed or dotted
++            linestyle is used.
++        """
++        self._gapcolor = mcolors.to_rgba(c)
++        self.stale = True
++
++    def get_gapcolor(self):
++        """
++        Get the gapcolor for the LineCollection.
++
++        Returns
++        -------
++        color
++            The color of the gaps between lines when a dashed or dotted
++            linestyle is used.
++        """
++        return self._gapcolor
++
+     @_docstring.interpd
+     def set_capstyle(self, cs):
+         """
+@@ -1382,7 +1407,7 @@ class LineCollection(Collection):
+ 
+             or the equivalent numpy array with two columns. Each line
+             can have a different number of segments.
+-        linewidths : float or list of float, default: :rc:`lines.linewidth`
++        linewidths : float or list thereof, default: :rc:`lines.linewidth`
+             The width of each line in points.
+         colors : color or list of color, default: :rc:`lines.color`
+             A sequence of RGBA tuples (e.g., arbitrary color strings, etc, not

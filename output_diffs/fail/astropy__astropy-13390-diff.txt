@@ -1,0 +1,47 @@
+diff --git a/astropy/table/column.py b/astropy/table/column.py
+index ca3e652131..8459428612 100644
+--- a/astropy/table/column.py
++++ b/astropy/table/column.py
+@@ -297,33 +297,18 @@ def _make_compare(oper):
+     oper : str
+         Operator name
+     """
+-    swapped_oper = {'__eq__': '__eq__',
+-                    '__ne__': '__ne__',
+-                    '__gt__': '__lt__',
+-                    '__lt__': '__gt__',
+-                    '__ge__': '__le__',
+-                    '__le__': '__ge__'}[oper]
+-
+     def _compare(self, other):
+         op = oper  # copy enclosed ref to allow swap below
+ 
+-        # Special case to work around #6838.  Other combinations work OK,
+-        # see tests.test_column.test_unicode_sandwich_compare().  In this
+-        # case just swap self and other.
+-        #
+-        # This is related to an issue in numpy that was addressed in np 1.13.
+-        # However that fix does not make this problem go away, but maybe
+-        # future numpy versions will do so.  NUMPY_LT_1_13 to get the
+-        # attention of future maintainers to check (by deleting or versioning
+-        # the if block below).  See #6899 discussion.
+-        # 2019-06-21: still needed with numpy 1.16.
+-        if (isinstance(self, MaskedColumn) and self.dtype.kind == 'U'
+-                and isinstance(other, MaskedColumn) and other.dtype.kind == 'S'):
+-            self, other = other, self
+-            op = swapped_oper
+-
+-        if self.dtype.char == 'S':
+-            other = self._encode_str(other)
++        # If other is a string then we may need to encode/decode self or other
++        # to allow comparison of the underlying bytestring data.
++        if isinstance(other, str):
++            if self.dtype.kind == 'S':
++                other = other.encode('utf-8')
++            elif self.dtype.kind == 'U':
++                self = self.astype(str)
++        elif isinstance(other, bytes) and self.dtype.kind == 'U':
++            other = other.decode('utf-8')
+ 
+         # Now just let the regular ndarray.__eq__, etc., take over.
+         result = getattr(super(Column, self), op)(other)

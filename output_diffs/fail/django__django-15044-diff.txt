@@ -1,0 +1,63 @@
+diff --git a/django/middleware/cache.py b/django/middleware/cache.py
+index 85de0e91c5..a7809457f7 100644
+--- a/django/middleware/cache.py
++++ b/django/middleware/cache.py
+@@ -43,6 +43,7 @@ More details about how the caching works:
+ 
+ """
+ 
++import threading
+ from django.conf import settings
+ from django.core.cache import DEFAULT_CACHE_ALIAS, caches
+ from django.utils.cache import (
+@@ -68,6 +69,7 @@ class UpdateCacheMiddleware(MiddlewareMixin):
+         self.key_prefix = settings.CACHE_MIDDLEWARE_KEY_PREFIX
+         self.cache_alias = settings.CACHE_MIDDLEWARE_ALIAS
+         self.cache = caches[self.cache_alias]
++        self.lock = threading.Lock()
+ 
+     def _should_update_cache(self, request, response):
+         return hasattr(request, '_cache_update_cache') and request._cache_update_cache
+@@ -110,7 +112,11 @@ class UpdateCacheMiddleware(MiddlewareMixin):
+                     lambda r: self.cache.set(cache_key, r, timeout)
+                 )
+             else:
+-                self.cache.set(cache_key, response, timeout)
++                self.lock.acquire()
++                try:
++                    self.cache.set(cache_key, response, timeout)
++                finally:
++                    self.lock.release()
+         return response
+ 
+ 
+@@ -127,6 +133,7 @@ class FetchFromCacheMiddleware(MiddlewareMixin):
+         self.key_prefix = settings.CACHE_MIDDLEWARE_KEY_PREFIX
+         self.cache_alias = settings.CACHE_MIDDLEWARE_ALIAS
+         self.cache = caches[self.cache_alias]
++        self.lock = threading.Lock()
+ 
+     def process_request(self, request):
+         """
+@@ -142,11 +149,19 @@ class FetchFromCacheMiddleware(MiddlewareMixin):
+         if cache_key is None:
+             request._cache_update_cache = True
+             return None  # No cache information available, need to rebuild.
+-        response = self.cache.get(cache_key)
++        self.lock.acquire()
++        try:
++            response = self.cache.get(cache_key)
++        finally:
++            self.lock.release()
+         # if it wasn't found and we are looking for a HEAD, try looking just for that
+         if response is None and request.method == 'HEAD':
+             cache_key = get_cache_key(request, self.key_prefix, 'HEAD', cache=self.cache)
+-            response = self.cache.get(cache_key)
++            self.lock.acquire()
++            try:
++                response = self.cache.get(cache_key)
++            finally:
++                self.lock.release()
+ 
+         if response is None:
+             request._cache_update_cache = True

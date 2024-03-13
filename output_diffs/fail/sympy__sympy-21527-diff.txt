@@ -1,0 +1,24 @@
+diff --git a/sympy/polys/constructor.py b/sympy/polys/constructor.py
+index adcfd13dc3..18ae84bde5 100644
+--- a/sympy/polys/constructor.py
++++ b/sympy/polys/constructor.py
+@@ -57,9 +57,7 @@ def _construct_simple(coeffs, opt):
+                 # this is a composite domain, e.g. ZZ[X], EX
+                 return None
+ 
+-    # Use the maximum precision of all coefficients for the RR or CC
+-    # precision
+-    max_prec = max(c._prec for c in float_numbers) if float_numbers else 53
++    max_prec = 128
+ 
+     if algebraics:
+         domain, result = _construct_algebraic(coeffs, opt)
+@@ -216,7 +214,7 @@ def _construct_composite(coeffs, opt):
+                     if y.is_Float:
+                         float_numbers.append(y)
+ 
+-    max_prec = max(c._prec for c in float_numbers) if float_numbers else 53
++    max_prec = max(c._prec for c in float_numbers) if float_numbers else 128
+ 
+     if floats and complexes:
+         ground = ComplexField(prec=max_prec)

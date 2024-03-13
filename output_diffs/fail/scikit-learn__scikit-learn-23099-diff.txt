@@ -1,0 +1,24 @@
+diff --git a/sklearn/gaussian_process/_gpr.py b/sklearn/gaussian_process/_gpr.py
+index 3a657c4bf..94c5a53c2 100644
+--- a/sklearn/gaussian_process/_gpr.py
++++ b/sklearn/gaussian_process/_gpr.py
+@@ -463,7 +463,7 @@ class GaussianProcessRegressor(MultiOutputMixin, RegressorMixin, BaseEstimator):
+             else:
+                 return y_mean
+ 
+-    def sample_y(self, X, n_samples=1, random_state=0):
++    def sample_y(self, X, n_samples=1, random_state=0, n_targets=None):
+         """Draw samples from Gaussian process and evaluate at X.
+ 
+         Parameters
+@@ -480,6 +480,10 @@ class GaussianProcessRegressor(MultiOutputMixin, RegressorMixin, BaseEstimator):
+             calls.
+             See :term:`Glossary <random_state>`.
+ 
++        n_targets : int or None, default=None
++            Number of target values. If None, the number of targets is
++            inferred from the fitted model if available, otherwise it is set to 1.
++
+         Returns
+         -------
+         y_samples : ndarray of shape (n_samples_X, n_samples), or \

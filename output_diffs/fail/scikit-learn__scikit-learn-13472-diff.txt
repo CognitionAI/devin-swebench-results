@@ -1,0 +1,26 @@
+diff --git a/sklearn/ensemble/gradient_boosting.py b/sklearn/ensemble/gradient_boosting.py
+index ed8622cc8..7f64d10a6 100644
+--- a/sklearn/ensemble/gradient_boosting.py
++++ b/sklearn/ensemble/gradient_boosting.py
+@@ -1476,19 +1476,9 @@ class BaseGradientBoosting(BaseEnsemble, metaclass=ABCMeta):
+                 raw_predictions = np.zeros(shape=(X.shape[0], self.loss_.K),
+                                            dtype=np.float64)
+             else:
+-                try:
+-                    self.init_.fit(X, y, sample_weight=sample_weight)
+-                except TypeError:
+-                    if sample_weight_is_none:
+-                        self.init_.fit(X, y)
+-                    else:
+-                        raise ValueError(
+-                            "The initial estimator {} does not support sample "
+-                            "weights.".format(self.init_.__class__.__name__))
+-
++                self.init_.fit(X, y, sample_weight=sample_weight)
+                 raw_predictions = \
+-                    self.loss_.get_init_raw_predictions(X, self.init_)
+-
++                    self.loss_.get_init_raw_predictions(X, self.init_).astype(np.float64)
+ 
+             begin_at_stage = 0
+ 

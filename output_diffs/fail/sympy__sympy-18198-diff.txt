@@ -1,0 +1,145 @@
+diff --git a/sympy/core/evaluate.py b/sympy/core/evaluate.py
+deleted file mode 100644
+index 0cd4296783..0000000000
+--- a/sympy/core/evaluate.py
++++ /dev/null
+@@ -1,72 +0,0 @@
+-from .cache import clear_cache
+-from contextlib import contextmanager
+-
+-
+-class _global_function(list):
+-    """ The cache must be cleared whenever _global_function is changed. """
+-
+-    def __setitem__(self, key, value):
+-        if (self[key] != value):
+-            clear_cache()
+-        super(_global_function, self).__setitem__(key, value)
+-
+-
+-global_evaluate = _global_function([True])
+-global_distribute = _global_function([True])
+-
+-
+-@contextmanager
+-def evaluate(x):
+-    """ Control automatic evaluation
+-
+-    This context manager controls whether or not all SymPy functions evaluate
+-    by default.
+-
+-    Note that much of SymPy expects evaluated expressions.  This functionality
+-    is experimental and is unlikely to function as intended on large
+-    expressions.
+-
+-    Examples
+-    ========
+-
+-    >>> from sympy.abc import x
+-    >>> from sympy.core.evaluate import evaluate
+-    >>> print(x + x)
+-    2*x
+-    >>> with evaluate(False):
+-    ...     print(x + x)
+-    x + x
+-    """
+-
+-    old = global_evaluate[0]
+-
+-    global_evaluate[0] = x
+-    yield
+-    global_evaluate[0] = old
+-
+-
+-@contextmanager
+-def distribute(x):
+-    """ Control automatic distribution of Number over Add
+-
+-    This context manager controls whether or not Mul distribute Number over
+-    Add. Plan is to avoid distributing Number over Add in all of sympy. Once
+-    that is done, this contextmanager will be removed.
+-
+-    Examples
+-    ========
+-
+-    >>> from sympy.abc import x
+-    >>> from sympy.core.evaluate import distribute
+-    >>> print(2*(x + 1))
+-    2*x + 2
+-    >>> with distribute(False):
+-    ...     print(2*(x + 1))
+-    2*(x + 1)
+-    """
+-
+-    old = global_distribute[0]
+-
+-    global_distribute[0] = x
+-    yield
+-    global_distribute[0] = old
+diff --git a/sympy/core/parameters.py b/sympy/core/parameters.py
+new file mode 100644
+index 0000000000..94e9a4376f
+--- /dev/null
++++ b/sympy/core/parameters.py
+@@ -0,0 +1,61 @@
++from .cache import clear_cache
++from contextlib import contextmanager
++
++class GlobalParameters:
++    """ A class to handle global parameters in a dict-like structure with context manager support. """
++
++    def __init__(self):
++        self._parameters = {
++            'evaluate': [True],
++            'distribute': [True]
++        }
++
++    def __getitem__(self, key):
++        """ Get the global parameter list. """
++        return self._parameters[key]
++
++    def __setitem__(self, key, value):
++        """ Set the global parameter list. """
++        if self._parameters[key] != value:
++            clear_cache()
++        self._parameters[key] = value
++
++    @property
++    def evaluate(self):
++        """ Get the current value of the 'evaluate' parameter. """
++        return self._parameters['evaluate'][0]
++
++    @evaluate.setter
++    def evaluate(self, value):
++        """ Set the current value of the 'evaluate' parameter. """
++        if self._parameters['evaluate'][0] != value:
++            clear_cache()
++        self._parameters['evaluate'][0] = value
++
++    @property
++    def distribute(self):
++        """ Get the current value of the 'distribute' parameter. """
++        return self._parameters['distribute'][0]
++
++    @distribute.setter
++    def distribute(self, value):
++        """ Set the current value of the 'distribute' parameter. """
++        if self._parameters['distribute'][0] != value:
++            clear_cache()
++        self._parameters['distribute'][0] = value
++
++    @contextmanager
++    def set(self, **kwargs):
++        """ Context manager to temporarily set global parameters. """
++        old_values = {}
++        try:
++            for key, value in kwargs.items():
++                old_values[key] = self._parameters[key][0]
++                self[key][0] = value
++            yield
++        finally:
++            for key, value in old_values.items():
++                self[key][0] = value
++
++# Create a single global instance to manage all parameters
++global_parameters = GlobalParameters()

@@ -1,0 +1,93 @@
+diff --git a/pylint/lint/expand_modules.py b/pylint/lint/expand_modules.py
+index 2c080c804..ee22ce6c1 100644
+--- a/pylint/lint/expand_modules.py
++++ b/pylint/lint/expand_modules.py
+@@ -28,34 +28,44 @@ def get_python_path(filepath: str) -> str:
+             return os.getcwd()
+ 
+ 
+-def _basename_in_ignore_list_re(base_name, ignore_list_re):
+-    """Determines if the basename is matched in a regex ignorelist
++def _path_in_ignore_list(full_path, ignore_list_re):
++    """Determines if the full path is matched in a regex ignorelist
+ 
+-    :param str base_name: The basename of the file
++    :param str full_path: The full path of the file
+     :param list ignore_list_re: A collection of regex patterns to match against.
+         Successful matches are ignored.
+ 
+-    :returns: `True` if the basename is ignored, `False` otherwise.
++    :returns: `True` if the full path is ignored, `False` otherwise.
+     :rtype: bool
+     """
++    print(f"Checking if path should be ignored: {full_path}")
+     for file_pattern in ignore_list_re:
+-        if file_pattern.match(base_name):
++        match = file_pattern.search(full_path)
++        print(f"Pattern: {file_pattern.pattern}, Match: {match}")
++        if match:
++            print(f"Ignoring path: {full_path}")
+             return True
++    print(f"Not ignoring path: {full_path}")
+     return False
+ 
+ 
+ def expand_modules(files_or_modules, ignore_list, ignore_list_re):
+     """Take a list of files/modules/packages and return the list of tuple
+     (file, module name) which have to be actually checked."""
++    print("Ignore patterns regex list:", [pattern.pattern for pattern in ignore_list_re])
+     result = []
+     errors = []
+     path = sys.path.copy()
+     for something in files_or_modules:
++        print(f"Processing file/module: {something}")
+         basename = os.path.basename(something)
+-        if basename in ignore_list or _basename_in_ignore_list_re(
+-            basename, ignore_list_re
++        full_path = os.path.join(os.path.dirname(something), basename)
++        if basename in ignore_list or _path_in_ignore_list(
++            full_path, ignore_list_re
+         ):
++            print(f"Ignored: {something}")
+             continue
++        print(f"Included in analysis: {something}")
+         module_path = get_python_path(something)
+         additional_search_path = [".", module_path] + path
+         if os.path.exists(something):
+@@ -117,8 +127,8 @@ def expand_modules(files_or_modules, ignore_list, ignore_list_re):
+             ):
+                 if filepath == subfilepath:
+                     continue
+-                if _basename_in_ignore_list_re(
+-                    os.path.basename(subfilepath), ignore_list_re
++                if _path_in_ignore_list(
++                    subfilepath, ignore_list_re
+                 ):
+                     continue
+                 modpath = _modpath_from_file(
+diff --git a/pylint/lint/pylinter.py b/pylint/lint/pylinter.py
+index fc7cee346..a2f74b28f 100644
+--- a/pylint/lint/pylinter.py
++++ b/pylint/lint/pylinter.py
+@@ -10,6 +10,7 @@ import sys
+ import tokenize
+ import traceback
+ import warnings
++import re
+ from io import TextIOWrapper
+ 
+ import astroid
+@@ -1045,6 +1046,13 @@ class PyLinter(
+ 
+     def _expand_files(self, modules):
+         """get modules and errors from a list of modules and handle errors"""
++        # Convert black_list to regex patterns and add to black_list_re
++        for ignore_entry in self.config.black_list:
++            # Escape the entry to handle any special regex characters
++            escaped_entry = re.escape(ignore_entry)
++            # Compile a regex pattern that matches the entry at any directory level
++            pattern = re.compile(rf"(^|/){escaped_entry}(/|$)")
++            self.config.black_list_re.append(pattern)
+         result, errors = expand_modules(
+             modules, self.config.black_list, self.config.black_list_re
+         )

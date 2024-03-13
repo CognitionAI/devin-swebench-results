@@ -1,0 +1,77 @@
+diff --git a/sklearn/feature_extraction/text.py b/sklearn/feature_extraction/text.py
+index df0582d3d..620720f61 100644
+--- a/sklearn/feature_extraction/text.py
++++ b/sklearn/feature_extraction/text.py
+@@ -1085,6 +1085,9 @@ class TfidfTransformer(BaseEstimator, TransformerMixin):
+     sublinear_tf : boolean, default=False
+         Apply sublinear tf scaling, i.e. replace tf with 1 + log(tf).
+ 
++    dtype : type, optional
++        Type of the matrix returned by fit_transform() or transform().
++
+     Attributes
+     ----------
+     idf_ : array, shape (n_features)
+@@ -1103,11 +1106,12 @@ class TfidfTransformer(BaseEstimator, TransformerMixin):
+     """
+ 
+     def __init__(self, norm='l2', use_idf=True, smooth_idf=True,
+-                 sublinear_tf=False):
++                 sublinear_tf=False, dtype=np.float64):
+         self.norm = norm
+         self.use_idf = use_idf
+         self.smooth_idf = smooth_idf
+         self.sublinear_tf = sublinear_tf
++        self.dtype = dtype
+ 
+     def fit(self, X, y=None):
+         """Learn the idf vector (global term weights)
+@@ -1118,7 +1122,7 @@ class TfidfTransformer(BaseEstimator, TransformerMixin):
+             a matrix of term/token counts
+         """
+         if not sp.issparse(X):
+-            X = sp.csc_matrix(X)
++            X = sp.csc_matrix(X, dtype=self.dtype)
+         if self.use_idf:
+             n_samples, n_features = X.shape
+             df = _document_frequency(X)
+@@ -1131,7 +1135,7 @@ class TfidfTransformer(BaseEstimator, TransformerMixin):
+             # suppressed entirely.
+             idf = np.log(float(n_samples) / df) + 1.0
+             self._idf_diag = sp.spdiags(idf, diags=0, m=n_features,
+-                                        n=n_features, format='csr')
++                                        n=n_features, format='csr').astype(self.dtype)
+ 
+         return self
+ 
+@@ -1156,7 +1160,7 @@ class TfidfTransformer(BaseEstimator, TransformerMixin):
+             X = sp.csr_matrix(X, copy=copy)
+         else:
+             # convert counts or binary occurrences to floats
+-            X = sp.csr_matrix(X, dtype=np.float64, copy=copy)
++            X = sp.csr_matrix(X, dtype=self.dtype, copy=copy)
+ 
+         n_samples, n_features = X.shape
+ 
+@@ -1188,10 +1192,10 @@ class TfidfTransformer(BaseEstimator, TransformerMixin):
+ 
+     @idf_.setter
+     def idf_(self, value):
+-        value = np.asarray(value, dtype=np.float64)
++        value = np.asarray(value, dtype=self.dtype)
+         n_features = value.shape[0]
+         self._idf_diag = sp.spdiags(value, diags=0, m=n_features,
+-                                    n=n_features, format='csr')
++                                    n=n_features, format='csr').astype(self.dtype)
+ 
+ 
+ class TfidfVectorizer(CountVectorizer):
+@@ -1381,7 +1385,7 @@ class TfidfVectorizer(CountVectorizer):
+ 
+         self._tfidf = TfidfTransformer(norm=norm, use_idf=use_idf,
+                                        smooth_idf=smooth_idf,
+-                                       sublinear_tf=sublinear_tf)
++                                       sublinear_tf=sublinear_tf, dtype=dtype)
+ 
+     # Broadcast the TF-IDF parameters to the underlying transformer instance
+     # for easy grid search and repr

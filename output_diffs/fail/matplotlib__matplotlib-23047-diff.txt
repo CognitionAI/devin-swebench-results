@@ -1,0 +1,17 @@
+diff --git a/lib/matplotlib/axes/_axes.py b/lib/matplotlib/axes/_axes.py
+index 388b79b64b..e6d6051463 100644
+--- a/lib/matplotlib/axes/_axes.py
++++ b/lib/matplotlib/axes/_axes.py
+@@ -6633,8 +6633,11 @@ such objects
+                 _w = np.concatenate(w)
+             else:
+                 _w = None
++            # Convert input data to float32 for precision
++            x_float32 = np.array(x, dtype=np.float32)
++            x_float32_concat = np.concatenate(x_float32)
+             bins = np.histogram_bin_edges(
+-                np.concatenate(x), bins, bin_range, _w)
++                x_float32_concat, bins, bin_range, _w)
+         else:
+             hist_kwargs['range'] = bin_range
+ 

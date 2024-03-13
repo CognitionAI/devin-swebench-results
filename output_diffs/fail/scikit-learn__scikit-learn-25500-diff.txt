@@ -1,0 +1,33 @@
+diff --git a/sklearn/calibration.py b/sklearn/calibration.py
+index 2c4a33616..b3269827c 100644
+--- a/sklearn/calibration.py
++++ b/sklearn/calibration.py
+@@ -14,6 +14,7 @@ from functools import partial
+ 
+ from math import log
+ import numpy as np
++import pandas as pd
+ 
+ from scipy.special import expit
+ from scipy.special import xlogy
+@@ -474,6 +475,8 @@ class CalibratedClassifierCV(ClassifierMixin, MetaEstimatorMixin, BaseEstimator)
+         mean_proba = np.zeros((_num_samples(X), len(self.classes_)))
+         for calibrated_classifier in self.calibrated_classifiers_:
+             proba = calibrated_classifier.predict_proba(X)
++            if isinstance(proba, pd.DataFrame):
++                proba = proba.values
+             mean_proba += proba
+ 
+         mean_proba /= len(self.calibrated_classifiers_)
+@@ -760,7 +763,10 @@ class _CalibratedClassifier:
+                 # When binary, `predictions` consists only of predictions for
+                 # clf.classes_[1] but `pos_class_indices` = 0
+                 class_idx += 1
+-            proba[:, class_idx] = calibrator.predict(this_pred)
++            predicted = calibrator.predict(this_pred)
++            if isinstance(predicted, pd.DataFrame):
++                predicted = predicted.values
++            proba[:, class_idx] = predicted.ravel()
+ 
+         # Normalize the probabilities
+         if n_classes == 2:

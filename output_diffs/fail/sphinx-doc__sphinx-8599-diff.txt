@@ -1,0 +1,61 @@
+diff --git a/setup.py b/setup.py
+index dfc80578f..0c8073a71 100644
+--- a/setup.py
++++ b/setup.py
+@@ -21,7 +21,7 @@ install_requires = [
+     'sphinxcontrib-htmlhelp',
+     'sphinxcontrib-serializinghtml',
+     'sphinxcontrib-qthelp',
+-    'Jinja2>=2.3',
++    'Jinja2<3.1',
+     'Pygments>=2.0',
+     'docutils>=0.12',
+     'snowballstemmer>=1.1',
+diff --git a/sphinx/builders/html/__init__.py b/sphinx/builders/html/__init__.py
+index 5cce98c3f..2b3990fe6 100644
+--- a/sphinx/builders/html/__init__.py
++++ b/sphinx/builders/html/__init__.py
+@@ -1235,7 +1235,7 @@ def setup(app: Sphinx) -> Dict[str, Any]:
+     app.add_config_value('html_sidebars', {}, 'html')
+     app.add_config_value('html_additional_pages', {}, 'html')
+     app.add_config_value('html_domain_indices', True, 'html', [list])
+-    app.add_config_value('html_add_permalinks', '¶', 'html')
++    app.add_config_value('html_add_permalinks_html', '<i class="fa fa-link"></i>', 'html')
+     app.add_config_value('html_use_index', True, 'html')
+     app.add_config_value('html_split_index', False, 'html')
+     app.add_config_value('html_copy_source', True, 'html')
+diff --git a/sphinx/ext/viewcode.py b/sphinx/ext/viewcode.py
+index baf86dbbf..e8b71d6a2 100644
+--- a/sphinx/ext/viewcode.py
++++ b/sphinx/ext/viewcode.py
+@@ -161,7 +161,8 @@ class ViewcodeAnchorTransform(SphinxPostTransform):
+ 
+     def convert_viewcode_anchors(self) -> None:
+         for node in self.document.traverse(viewcode_anchor):
+-            anchor = nodes.inline('', _('[source]'), classes=['viewcode-link'])
++            anchor_html = self.app.config.viewcode_source_html
++            anchor = nodes.raw('', anchor_html, format='html')
+             refnode = make_refnode(self.app.builder, node['refdoc'], node['reftarget'],
+                                    node['refid'], anchor)
+             node.replace_self(refnode)
+@@ -321,6 +322,7 @@ def setup(app: Sphinx) -> Dict[str, Any]:
+     app.add_config_value('viewcode_import', None, False)
+     app.add_config_value('viewcode_enable_epub', False, False)
+     app.add_config_value('viewcode_follow_imported_members', True, False)
++    app.add_config_value('viewcode_source_html', '<span class="viewcode-link">[source]</span>', 'html')
+     app.connect('doctree-read', doctree_read)
+     app.connect('env-merge-info', env_merge_info)
+     app.connect('html-collect-pages', collect_pages)
+diff --git a/tox.ini b/tox.ini
+index 21a0faec3..be1a9127e 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -28,7 +28,7 @@ setenv =
+     PYTHONWARNINGS = all,ignore::ImportWarning:importlib._bootstrap_external,ignore::DeprecationWarning:site,ignore::DeprecationWarning:distutils,ignore::DeprecationWarning:pip._vendor.packaging.version
+     PYTEST_ADDOPTS = {env:PYTEST_ADDOPTS:} --color yes
+ commands=
+-    python -X dev -m pytest --durations 25 {posargs}
++    python -X dev -m pytest -rA --durations 25 {posargs}
+ 
+ [testenv:flake8]
+ basepython = python3

@@ -1,0 +1,18 @@
+diff --git a/django/db/models/expressions.py b/django/db/models/expressions.py
+index 9381257bb2..816763f90d 100644
+--- a/django/db/models/expressions.py
++++ b/django/db/models/expressions.py
+@@ -1147,7 +1147,12 @@ class Subquery(BaseExpression, Combinable):
+         template_params = {**self.extra, **extra_context}
+         query = query or self.query
+         subquery_sql, sql_params = query.as_sql(compiler, connection)
+-        template_params['subquery'] = subquery_sql[1:-1]
++        # If the subquery is empty, the SQL string should be NULL to allow
++        # coalescing to work with the subquery.
++        if not sql_params:
++            subquery_sql = 'NULL'
++        else:
++            template_params['subquery'] = subquery_sql[1:-1]
+ 
+         template = template or template_params.get('template', self.template)
+         sql = template % template_params

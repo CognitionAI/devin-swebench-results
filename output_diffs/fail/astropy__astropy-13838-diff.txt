@@ -1,0 +1,23 @@
+diff --git a/astropy/table/pprint.py b/astropy/table/pprint.py
+index 671b589ca3..8e16cbefa1 100644
+--- a/astropy/table/pprint.py
++++ b/astropy/table/pprint.py
+@@ -478,9 +478,15 @@ class TableFormatter:
+                 if trivial_multidims:
+                     return format_func(col_format, col[(idx,) + multidim0])
+                 else:
+-                    left = format_func(col_format, col[(idx,) + multidim0])
+-                    right = format_func(col_format, col[(idx,) + multidim1])
+-                    return f'{left} .. {right}'
++                    # Check if the array is non-empty before attempting to format
++                    if np.any(np.array(multidims) == 0):
++                        # Handle 0-length array case, perhaps by returning a placeholder
++                        return '<empty array>'
++                    else:
++                        # Existing logic for non-empty arrays
++                        left = format_func(col_format, col[(idx,) + multidim0])
++                        right = format_func(col_format, col[(idx,) + multidim1])
++                        return f'{left} .. {right}'
+             else:
+                 return format_func(col_format, col[idx])
+ 

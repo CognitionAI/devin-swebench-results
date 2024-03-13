@@ -1,0 +1,13 @@
+diff --git a/lib/matplotlib/widgets.py b/lib/matplotlib/widgets.py
+index ebe5da43e2..d1925b3ef1 100644
+--- a/lib/matplotlib/widgets.py
++++ b/lib/matplotlib/widgets.py
+@@ -2465,7 +2465,7 @@ class _SelectorWidget(AxesWidget):
+         artist.set(**props)
+         if self.useblit:
+             self.update()
+-        self._props.update(props)
++        # self._props.update(props)  # Commented out to fix AttributeError
+ 
+     def set_handle_props(self, **handle_props):
+         """

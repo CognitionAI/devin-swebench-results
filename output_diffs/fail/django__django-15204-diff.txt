@@ -1,0 +1,24 @@
+diff --git a/django/forms/fields.py b/django/forms/fields.py
+index 65d6a9ec82..996d480ce8 100644
+--- a/django/forms/fields.py
++++ b/django/forms/fields.py
+@@ -500,11 +500,14 @@ class DurationField(Field):
+             return value
+         try:
+             value = parse_duration(str(value))
+-        except OverflowError:
+-            raise ValidationError(self.error_messages['overflow'].format(
+-                min_days=datetime.timedelta.min.days,
+-                max_days=datetime.timedelta.max.days,
+-            ), code='overflow')
++        except (ValueError, OverflowError) as e:
++            if isinstance(e, OverflowError):
++                raise ValidationError(self.error_messages['overflow'].format(
++                    min_days=datetime.timedelta.min.days,
++                    max_days=datetime.timedelta.max.days,
++                ), code='overflow')
++            else:
++                raise ValidationError(self.error_messages['invalid'], code='invalid')
+         if value is None:
+             raise ValidationError(self.error_messages['invalid'], code='invalid')
+         return value

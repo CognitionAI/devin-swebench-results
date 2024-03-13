@@ -1,0 +1,30 @@
+diff --git a/django/__init__.py b/django/__init__.py
+index 3025f721bd..509b0873e6 100644
+--- a/django/__init__.py
++++ b/django/__init__.py
+@@ -1,4 +1,6 @@
+ from django.utils.version import get_version
++from django.conf import settings
++from django.core.urlresolvers import set_script_prefix
+ 
+ VERSION = (1, 10, 0, 'alpha', 0)
+ 
+@@ -8,11 +10,16 @@ __version__ = get_version(VERSION)
+ def setup():
+     """
+     Configure the settings (this happens as a side effect of accessing the
+-    first setting), configure logging and populate the app registry.
++    first setting), configure logging, set the script prefix if defined in settings,
++    and populate the app registry.
+     """
+     from django.apps import apps
+-    from django.conf import settings
+     from django.utils.log import configure_logging
+ 
+     configure_logging(settings.LOGGING_CONFIG, settings.LOGGING)
++
++    # Set the script prefix if SCRIPT_PREFIX is defined in settings
++    script_prefix = getattr(settings, 'SCRIPT_PREFIX', '/')
++    set_script_prefix(script_prefix)
++
+     apps.populate(settings.INSTALLED_APPS)

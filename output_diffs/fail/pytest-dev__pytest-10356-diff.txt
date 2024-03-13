@@ -1,0 +1,63 @@
+diff --git a/src/_pytest/mark/structures.py b/src/_pytest/mark/structures.py
+index 800a25c92..ce919ff00 100644
+--- a/src/_pytest/mark/structures.py
++++ b/src/_pytest/mark/structures.py
+@@ -350,6 +350,7 @@ class MarkDecorator:
+             func = args[0]
+             is_class = inspect.isclass(func)
+             if len(args) == 1 and (istestfunc(func) or is_class):
++                print(f"Applying {self.mark} to {func.__name__}")  # Print statement added for debugging
+                 store_mark(func, self.mark)
+                 return func
+         return self.with_args(*args, **kwargs)
+@@ -360,7 +361,10 @@ def get_unpacked_marks(obj: object) -> Iterable[Mark]:
+     mark_list = getattr(obj, "pytestmark", [])
+     if not isinstance(mark_list, list):
+         mark_list = [mark_list]
+-    return normalize_mark_list(mark_list)
++    print(f"Raw marks from {getattr(obj, '__name__', repr(obj))}: {mark_list}")  # Print statement added for debugging
++    normalized_marks = list(normalize_mark_list(mark_list))
++    print(f"Normalized marks from {getattr(obj, '__name__', repr(obj))}: {normalized_marks}")  # Print statement added for debugging
++    return normalized_marks
+ 
+ 
+ def normalize_mark_list(
+@@ -381,14 +385,35 @@ def normalize_mark_list(
+ 
+ 
+ def store_mark(obj, mark: Mark) -> None:
+-    """Store a Mark on an object.
+-
++    """Store a Mark on an object, considering the Method Resolution Order (MRO).
+     This is used to implement the Mark declarations/decorators correctly.
+     """
+     assert isinstance(mark, Mark), mark
++    # Retrieve existing marks, considering MRO if obj is a class
++    existing_marks = []
++    if inspect.isclass(obj):
++        for cls in inspect.getmro(obj)[::-1]:  # Reverse the MRO to start from the base
++            cls_marks = get_unpacked_marks(cls)
++            print(f"Marks from {cls.__name__}: {list(cls_marks)}")  # Print statement added for debugging
++            for cls_mark in cls_marks:
++                if cls_mark.name not in (m.name for m in existing_marks):
++                    existing_marks.append(cls_mark)
++    else:
++        existing_marks.extend(get_unpacked_marks(obj))
++    # Add the new mark if it's not already present
++    print(f"Existing marks before adding new mark: {existing_marks}")  # Print statement added for debugging
++    if mark.name not in (m.name for m in existing_marks):
++        existing_marks.append(mark)
++    print(f"Existing marks after adding new mark: {existing_marks}")  # Print statement added for debugging
+     # Always reassign name to avoid updating pytestmark in a reference that
+     # was only borrowed.
+-    obj.pytestmark = [*get_unpacked_marks(obj), mark]
++    obj.pytestmark = existing_marks
++    # Update the pytestmark attribute on any subclasses
++    for subclass in obj.__subclasses__():
++        subclass_existing_marks = list(getattr(subclass, 'pytestmark', []))
++        if mark not in subclass_existing_marks:
++            subclass_existing_marks.append(mark)
++            subclass.pytestmark = subclass_existing_marks
+ 
+ 
+ # Typing for builtin pytest marks. This is cheating; it gives builtin marks

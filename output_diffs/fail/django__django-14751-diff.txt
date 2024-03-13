@@ -1,0 +1,21 @@
+diff --git a/django/core/management/commands/makemigrations.py b/django/core/management/commands/makemigrations.py
+index 4d26bfe278..e1bd4e89ad 100644
+--- a/django/core/management/commands/makemigrations.py
++++ b/django/core/management/commands/makemigrations.py
+@@ -59,7 +59,7 @@ class Command(BaseCommand):
+         )
+ 
+     def log(self, msg):
+-        self.stdout.write(msg)
++        self.stderr.write(msg)
+ 
+     @no_translations
+     def handle(self, *app_labels, **options):
+@@ -239,6 +239,7 @@ class Command(BaseCommand):
+                     migration_string = writer.as_string()
+                     with open(writer.path, "w", encoding='utf-8') as fh:
+                         fh.write(migration_string)
++                    self.stdout.write(writer.path + "\n")
+                 elif self.verbosity == 3:
+                     # Alternatively, makemigrations --dry-run --verbosity 3
+                     # will log the migrations rather than saving the file to

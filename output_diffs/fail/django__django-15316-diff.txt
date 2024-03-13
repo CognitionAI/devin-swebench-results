@@ -1,0 +1,18 @@
+diff --git a/django/contrib/admindocs/views.py b/django/contrib/admindocs/views.py
+index ffe4e13fa4..99a59cd917 100644
+--- a/django/contrib/admindocs/views.py
++++ b/django/contrib/admindocs/views.py
+@@ -1,4 +1,5 @@
+ import inspect
++import re
+ from importlib import import_module
+ from inspect import cleandoc
+ from pathlib import Path
+@@ -410,6 +411,7 @@ def simplify_regex(pattern):
+     example, turn "^(?P<sport_slug>\w+)/athletes/(?P<athlete_slug>\w+)/$"
+     into "/<sport_slug>/athletes/<athlete_slug>/".
+     """
++    pattern = re.sub(r'\(\?:[^\)]+\)', lambda m: m.group(0), pattern)
+     pattern = replace_named_groups(pattern)
+     pattern = replace_unnamed_groups(pattern)
+     pattern = replace_metacharacters(pattern)

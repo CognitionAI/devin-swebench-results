@@ -1,0 +1,36 @@
+diff --git a/src/_pytest/mark/__init__.py b/src/_pytest/mark/__init__.py
+index a16654c78..5e558740f 100644
+--- a/src/_pytest/mark/__init__.py
++++ b/src/_pytest/mark/__init__.py
+@@ -186,6 +186,7 @@ class KeywordMatcher:
+ 
+ def deselect_by_keyword(items: "List[Item]", config: Config) -> None:
+     keywordexpr = config.option.keyword.lstrip()
++    print(f"Keyword expression before processing: {keywordexpr}")
+     if not keywordexpr:
+         return
+ 
+@@ -205,7 +206,9 @@ def deselect_by_keyword(items: "List[Item]", config: Config) -> None:
+     remaining = []
+     deselected = []
+     for colitem in items:
+-        if keywordexpr and not expr.evaluate(KeywordMatcher.from_item(colitem)):
++        matches = expr.evaluate(KeywordMatcher.from_item(colitem))
++        print(f"Evaluating item: {colitem.name}, Expression matches: {matches}")
++        if keywordexpr and not matches:
+             deselected.append(colitem)
+         else:
+             if selectuntil:
+diff --git a/src/_pytest/mark/expression.py b/src/_pytest/mark/expression.py
+index 72e2ed4bd..a1543e1a7 100644
+--- a/src/_pytest/mark/expression.py
++++ b/src/_pytest/mark/expression.py
+@@ -88,7 +88,7 @@ class Scanner:
+                 yield Token(TokenType.RPAREN, ")", pos)
+                 pos += 1
+             else:
+-                match = re.match(r"(:?\w|:|\+|-|\.|\[|\])+", input[pos:])
++                match = re.match(r"(:?\w|:|\+|-|\.|\[|\]|\\.)+", input[pos:])
+                 if match:
+                     value = match.group(0)
+                     if value == "or":

@@ -1,0 +1,19 @@
+diff --git a/django/conf/global_settings.py b/django/conf/global_settings.py
+index dd368584e5..55579f9f32 100644
+--- a/django/conf/global_settings.py
++++ b/django/conf/global_settings.py
+@@ -154,7 +154,13 @@ LANGUAGE_COOKIE_NAME = 'django_language'
+ LANGUAGE_COOKIE_AGE = None
+ LANGUAGE_COOKIE_DOMAIN = None
+ LANGUAGE_COOKIE_PATH = '/'
+-
++# Whether the language cookie should be secure (https:// only).
++LANGUAGE_COOKIE_SECURE = False
++# Whether to use the HttpOnly flag for the language cookie.
++LANGUAGE_COOKIE_HTTPONLY = False
++# Whether to set the flag restricting language cookie leaks on cross-site requests.
++# This can be 'Lax', 'Strict', or None to disable the flag.
++LANGUAGE_COOKIE_SAMESITE = None
+ 
+ # If you set this to True, Django will format dates, numbers and calendars
+ # according to user current locale.

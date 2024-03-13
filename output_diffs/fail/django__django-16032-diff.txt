@@ -1,0 +1,28 @@
+diff --git a/django/db/models/query.py b/django/db/models/query.py
+index be0deb90b0..75c8c24c97 100644
+--- a/django/db/models/query.py
++++ b/django/db/models/query.py
+@@ -1629,12 +1629,17 @@ class QuerySet:
+             if isinstance(annotation, FilteredRelation):
+                 clone.query.add_filtered_relation(annotation, alias)
+             else:
+-                clone.query.add_annotation(
+-                    annotation,
+-                    alias,
+-                    is_summary=False,
+-                    select=select,
+-                )
++                # When using alias() with select=False, ensure that the resulting queryset
++                # for the __in lookup only includes the necessary columns. This check prevents
++                # annotations from being added to the SELECT clause of a subquery, which is
++                # required for the __in lookup to function correctly with a single column.
++                if select or not clone.query.is_subquery:
++                    clone.query.add_annotation(
++                        annotation,
++                        alias,
++                        is_summary=False,
++                        select=select,
++                    )
+         for alias, annotation in clone.query.annotations.items():
+             if alias in annotations and annotation.contains_aggregate:
+                 if clone._fields is None:

@@ -1,0 +1,15 @@
+diff --git a/sympy/algebras/quaternion.py b/sympy/algebras/quaternion.py
+index 0d3a353449..44806f2398 100644
+--- a/sympy/algebras/quaternion.py
++++ b/sympy/algebras/quaternion.py
+@@ -720,3 +720,10 @@ def to_rotation_matrix(self, v=None):
+ 
+             return Matrix([[m00, m01, m02, m03], [m10, m11, m12, m13],
+                           [m20, m21, m22, m23], [m30, m31, m32, m33]])
++
++    def evalf(self, n=15, subs=None, maxn=100, chop=False, strict=False, quad=None, verbose=False):
++        a_eval = self.a._eval_evalf(n, subs, maxn, chop, strict, quad, verbose)
++        b_eval = self.b._eval_evalf(n, subs, maxn, chop, strict, quad, verbose)
++        c_eval = self.c._eval_evalf(n, subs, maxn, chop, strict, quad, verbose)
++        d_eval = self.d._eval_evalf(n, subs, maxn, chop, strict, quad, verbose)
++        return Quaternion(a_eval, b_eval, c_eval, d_eval)

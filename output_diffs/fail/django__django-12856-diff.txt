@@ -1,0 +1,52 @@
+diff --git a/django/db/migrations/operations/models.py b/django/db/migrations/operations/models.py
+index 8c06c4d157..54bddc0191 100644
+--- a/django/db/migrations/operations/models.py
++++ b/django/db/migrations/operations/models.py
+@@ -3,6 +3,7 @@ from django.db.migrations.operations.base import Operation
+ from django.db.migrations.state import ModelState
+ from django.db.models.options import normalize_together
+ from django.utils.functional import cached_property
++from django.db.models.constraints import UniqueConstraint
+ 
+ from .fields import (
+     AddField, AlterField, FieldOperation, RemoveField, RenameField,
+@@ -805,6 +806,15 @@ class AddConstraint(IndexOperation):
+     def database_forwards(self, app_label, schema_editor, from_state, to_state):
+         model = to_state.apps.get_model(app_label, self.model_name)
+         if self.allow_migrate_model(schema_editor.connection.alias, model):
++            if isinstance(self.constraint, UniqueConstraint):
++                missing_fields = [
++                    field_name for field_name in self.constraint.fields
++                    if not model._meta.has_field(field_name)
++                ]
++                if missing_fields:
++                    raise ValueError(
++                        f"Fields {missing_fields} do not exist on the model '{model._meta.model_name}'."
++                    )
+             schema_editor.add_constraint(model, self.constraint)
+ 
+     def database_backwards(self, app_label, schema_editor, from_state, to_state):
+diff --git a/django/db/models/constraints.py b/django/db/models/constraints.py
+index 64bd60484e..57672edb51 100644
+--- a/django/db/models/constraints.py
++++ b/django/db/models/constraints.py
+@@ -2,6 +2,7 @@ from enum import Enum
+ 
+ from django.db.models.query_utils import Q
+ from django.db.models.sql.query import Query
++from django.core.exceptions import FieldDoesNotExist
+ 
+ __all__ = ['CheckConstraint', 'Deferrable', 'UniqueConstraint']
+ 
+@@ -91,6 +92,11 @@ class UniqueConstraint(BaseConstraint):
+                 'UniqueConstraint.deferrable must be a Deferrable instance.'
+             )
+         self.fields = tuple(fields)
++        for field_name in self.fields:
++            try:
++                model._meta.get_field(field_name)
++            except FieldDoesNotExist:
++                raise ValueError(f"The field '{field_name}' does not exist on the model.")
+         self.condition = condition
+         self.deferrable = deferrable
+         super().__init__(name)

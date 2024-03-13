@@ -1,0 +1,18 @@
+diff --git a/django/db/migrations/operations/models.py b/django/db/migrations/operations/models.py
+index 75a3b8b030..999d1dd65d 100644
+--- a/django/db/migrations/operations/models.py
++++ b/django/db/migrations/operations/models.py
+@@ -1081,6 +1081,13 @@ class RemoveConstraint(IndexOperation):
+         if self.allow_migrate_model(schema_editor.connection.alias, model):
+             from_model_state = from_state.models[app_label, self.model_name_lower]
+             constraint = from_model_state.get_constraint_by_name(self.name)
++            # Check if the constraint is a unique constraint on a single field
++            if constraint.fields and len(constraint.fields) == 1:
++                field_name = constraint.fields[0]
++                field = model._meta.get_field(field_name)
++                # If the field has its own unique=True constraint, skip removing this constraint
++                if field.unique:
++                    return
+             schema_editor.remove_constraint(model, constraint)
+ 
+     def database_backwards(self, app_label, schema_editor, from_state, to_state):

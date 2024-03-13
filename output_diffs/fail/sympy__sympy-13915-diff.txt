@@ -1,0 +1,65 @@
+diff --git a/sympy/core/expr.py b/sympy/core/expr.py
+index c36d6f271d..e0399bfd53 100644
+--- a/sympy/core/expr.py
++++ b/sympy/core/expr.py
+@@ -26,8 +26,6 @@ class Expr(Basic, EvalfMixin):
+     sympy.core.basic.Basic
+     """
+ 
+-    __slots__ = []
+-
+     @property
+     def _diff_wrt(self):
+         """Is it allowed to take derivative wrt to this instance.
+@@ -238,7 +236,7 @@ def __int__(self):
+             # (self - r).evalf(2) and the use of subs does; if the test that
+             # was added when this comment was added passes, it might be safe
+             # to simply use sign to compute this rather than doing this by hand:
+-            diff_sign = 1 if (self - x).evalf(2, subs={x: i}) > 0 else -1
++            diff_sign = 1 if (self - x).evalf(2, subs={x: i}).is_real and (self - x).evalf(2, subs={x: i}) > 0 else -1
+             if diff_sign != isign:
+                 i -= isign
+         return i
+@@ -3297,8 +3295,40 @@ def round(self, p=0):
+         elif x in (S.NaN, S.Infinity, S.NegativeInfinity, S.ComplexInfinity):
+             return x
+         if not x.is_real:
+-            i, r = x.as_real_imag()
+-            return i.round(p) + S.ImaginaryUnit*r.round(p)
++            if not x:
++                return x
++            p = int(p)
++
++            precs = [f._prec for f in x.atoms(Float)]
++            dps = prec_to_dps(max(precs)) if precs else None
++
++            mag_first_dig = _mag(x)
++            allow = digits_needed = mag_first_dig + p
++            if dps is not None and allow > dps:
++                allow = dps
++            mag = Pow(10, p)  # magnitude needed to bring digit p to units place
++            xwas = x
++            x += 1/(2*mag)  # add the half for rounding
++            i10 = 10*mag*x.n((dps if dps is not None else digits_needed) + 1)
++            if i10.is_negative:
++                x = xwas - 1/(2*mag)  # should have gone the other way
++                i10 = 10*mag*x.n((dps if dps is not None else digits_needed) + 1)
++                rv = -(Integer(-i10)//10)
++            else:
++                rv = Integer(i10)//10
++            q = 1
++            if p > 0:
++                q = mag
++            elif p < 0:
++                rv /= mag
++            rv = Rational(rv, q)
++            if rv.is_Integer:
++                # use str or else it won't be a float
++                return Float(str(rv), digits_needed)
++            else:
++                if not allow and rv > self:
++                    allow += 1
++                return Float(rv, allow)
+         if not x:
+             return x
+         p = int(p)

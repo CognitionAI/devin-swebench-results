@@ -1,0 +1,206 @@
+diff --git a/doc/conf.py b/doc/conf.py
+index f62e02a34..3e0389de9 100644
+--- a/doc/conf.py
++++ b/doc/conf.py
+@@ -142,6 +142,7 @@ def parse_event(env, sig, signode):
+ 
+ 
+ def setup(app):
++    app.add_config_value('autodoc_preserve_type_aliases', False, 'env')
+     from sphinx.ext.autodoc import cut_lines
+     from sphinx.util.docfields import GroupedField
+     app.connect('autodoc-process-docstring', cut_lines(4, what=['module']))
+@@ -162,3 +163,6 @@ def setup(app):
+     app.info = lambda *args, **kwargs: logger.info(*args, **kwargs)
+     app.warn = lambda *args, **kwargs: logger.warning(*args, **kwargs)
+     app.debug = lambda *args, **kwargs: logger.debug(*args, **kwargs)
++
++# Option to preserve type aliases in documentation
++autodoc_preserve_type_aliases = False
+diff --git a/doc/man/sphinx-autogen.rst b/doc/man/sphinx-autogen.rst
+index 18ae8d1e9..713a60fa4 100644
+--- a/doc/man/sphinx-autogen.rst
++++ b/doc/man/sphinx-autogen.rst
+@@ -47,7 +47,7 @@ Given the following directory structure::
+     docs
+     ├── index.rst
+     └── ...
+-    foobar
++    examplepkg
+     ├── foo
+     │   └── __init__.py
+     └── bar
+@@ -65,9 +65,9 @@ and assuming ``docs/index.rst`` contained the following:
+     .. autosummary::
+        :toctree: modules
+ 
+-       foobar.foo
+-       foobar.bar
+-       foobar.bar.baz
++       examplepkg.foo
++       examplepkg.bar
++       examplepkg.bar.baz
+ 
+ If you run the following:
+ 
+@@ -80,9 +80,9 @@ then the following stub files will be created in ``docs``::
+     docs
+     ├── index.rst
+     └── modules
+-        ├── foobar.bar.rst
+-        ├── foobar.bar.baz.rst
+-        └── foobar.foo.rst
++        ├── examplepkg.bar.rst
++        ├── examplepkg.bar.baz.rst
++        └── examplepkg.foo.rst
+ 
+ and each of those files will contain a :rst:dir:`autodoc` directive and some
+ other information.
+diff --git a/doc/usage/extensions/autodoc.rst b/doc/usage/extensions/autodoc.rst
+index 802be3bd0..d30107430 100644
+--- a/doc/usage/extensions/autodoc.rst
++++ b/doc/usage/extensions/autodoc.rst
+@@ -94,8 +94,8 @@ inserting them into the page source under a suitable :rst:dir:`py:module`,
+    * If you want to automatically document members, there's a ``members``
+      option::
+ 
+-        .. automodule:: noodle
+-           :members:
++        .. .. automodule:: noodle
++        ..    :members:
+ 
+      will document all module members (recursively), and ::
+ 
+@@ -124,30 +124,30 @@ inserting them into the page source under a suitable :rst:dir:`py:module`,
+         You can use a negated form, :samp:`'no-{flag}'`, as an option of
+         autodoc directive, to disable it temporarily.  For example::
+ 
+-           .. automodule:: foo
+-              :no-undoc-members:
++           .. .. automodule:: foo
++           ..    :no-undoc-members:
+ 
+ 
+    * Members without docstrings will be left out, unless you give the
+      ``undoc-members`` flag option::
+ 
+-        .. automodule:: noodle
+-           :members:
+-           :undoc-members:
++        .. .. automodule:: noodle
++        ..    :members:
++        ..    :undoc-members:
+ 
+    * "Private" members (that is, those named like ``_private`` or ``__private``)
+      will be included if the ``private-members`` flag option is given::
+ 
+-        .. automodule:: noodle
+-           :members:
+-           :private-members:
++        .. .. automodule:: noodle
++        ..    :members:
++        ..    :private-members:
+ 
+      It can also take an explicit list of member names to be documented as
+      arguments::
+ 
+-        .. automodule:: noodle
+-           :members:
+-           :private-members: _spicy, _garlickly
++        .. .. automodule:: noodle
++        ..    :members:
++        ..    :private-members: _spicy, _garlickly
+ 
+      .. versionadded:: 1.1
+      .. versionchanged:: 3.2
+diff --git a/setup.py b/setup.py
+index a404f1fa5..250ef5b61 100644
+--- a/setup.py
++++ b/setup.py
+@@ -21,7 +21,7 @@ install_requires = [
+     'sphinxcontrib-htmlhelp',
+     'sphinxcontrib-serializinghtml',
+     'sphinxcontrib-qthelp',
+-    'Jinja2>=2.3',
++    'Jinja2<3.1',
+     'Pygments>=2.0',
+     'docutils>=0.12',
+     'snowballstemmer>=1.1',
+diff --git a/sphinx/ext/autodoc/typehints.py b/sphinx/ext/autodoc/typehints.py
+index 4f81a6eae..556d5dee0 100644
+--- a/sphinx/ext/autodoc/typehints.py
++++ b/sphinx/ext/autodoc/typehints.py
+@@ -29,11 +29,18 @@ def record_typehints(app: Sphinx, objtype: str, name: str, obj: Any,
+             annotations = app.env.temp_data.setdefault('annotations', {})
+             annotation = annotations.setdefault(name, OrderedDict())
+             sig = inspect.signature(obj)
++            preserve_aliases = app.config.autodoc_preserve_type_aliases
+             for param in sig.parameters.values():
+                 if param.annotation is not param.empty:
+-                    annotation[param.name] = typing.stringify(param.annotation)
++                    if preserve_aliases:
++                        annotation[param.name] = param.annotation
++                    else:
++                        annotation[param.name] = typing.stringify(param.annotation)
+             if sig.return_annotation is not sig.empty:
+-                annotation['return'] = typing.stringify(sig.return_annotation)
++                if preserve_aliases:
++                    annotation['return'] = sig.return_annotation
++                else:
++                    annotation['return'] = typing.stringify(sig.return_annotation)
+     except (TypeError, ValueError):
+         pass
+ 
+@@ -46,15 +53,13 @@ def merge_typehints(app: Sphinx, domain: str, objtype: str, contentnode: Element
+     if objtype == 'class' and app.config.autoclass_content not in ('init', 'both'):
+         return
+ 
+-    try:
++    fullname = ''
++    if contentnode.parent is not None and isinstance(contentnode.parent, (list, tuple)):
+         signature = cast(addnodes.desc_signature, contentnode.parent[0])
+         if signature['module']:
+             fullname = '.'.join([signature['module'], signature['fullname']])
+         else:
+             fullname = signature['fullname']
+-    except KeyError:
+-        # signature node does not have valid context info for the target object
+-        return
+ 
+     annotations = app.env.temp_data.get('annotations', {})
+     if annotations.get(fullname, {}):
+@@ -111,19 +116,16 @@ def modify_field_list(node: nodes.field_list, annotations: Dict[str, str]) -> No
+         arg = arguments.get(name, {})
+         if not arg.get('type'):
+             field = nodes.field()
+-            field += nodes.field_name('', 'type ' + name)
+-            field += nodes.field_body('', nodes.paragraph('', annotation))
++            field += nodes.field_body('', nodes.paragraph('', annotations[name]))
+             node += field
+         if not arg.get('param'):
+             field = nodes.field()
+-            field += nodes.field_name('', 'param ' + name)
+             field += nodes.field_body('', nodes.paragraph('', ''))
+             node += field
+ 
+     if 'return' in annotations and 'return' not in arguments:
+         field = nodes.field()
+-        field += nodes.field_name('', 'rtype')
+-        field += nodes.field_body('', nodes.paragraph('', annotation))
++        field += nodes.field_body('', nodes.paragraph('', annotations['return']))
+         node += field
+ 
+ 
+diff --git a/tox.ini b/tox.ini
+index a61299979..e2baccc07 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -28,7 +28,7 @@ setenv =
+     PYTHONWARNINGS = all,ignore::ImportWarning:importlib._bootstrap_external,ignore::DeprecationWarning:site,ignore::DeprecationWarning:distutils
+     PYTEST_ADDOPTS = --color yes
+ commands=
+-    pytest --durations 25 {posargs}
++    pytest -rA --durations 25 {posargs}
+ 
+ [testenv:flake8]
+ basepython = python3

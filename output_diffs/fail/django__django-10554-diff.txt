@@ -1,0 +1,369 @@
+diff --git a/django/db/models/sql/query.py b/django/db/models/sql/query.py
+index 08d7faf194..35f5476a40 100644
+--- a/django/db/models/sql/query.py
++++ b/django/db/models/sql/query.py
+@@ -98,6 +98,10 @@ class RawQuery:
+     def get_columns(self):
+         if self.cursor is None:
+             self._execute_query()
++        if self.cursor is None:
++            print("Debug: self.cursor is None")
++        else:
++            print("Debug: self.cursor.description", self.cursor.description)
+         converter = connections[self.using].introspection.identifier_converter
+         return [converter(column_meta[0])
+                 for column_meta in self.cursor.description]
+@@ -109,171 +113,22 @@ class RawQuery:
+         if not connections[self.using].features.can_use_chunked_reads:
+             # If the database can't use chunked reads we need to make sure we
+             # evaluate the entire query up front.
+-            result = list(self.cursor)
++            if self.cursor is None:
++                print("Debug: self.cursor is None before list conversion")
++            else:
++                result = list(self.cursor)
+         else:
+             result = self.cursor
+-        return iter(result)
++        if not result:
++            print("Debug: result is empty before iteration")
++        if result is not None and hasattr(result, '__iter__'):
++            return iter(result)
++        else:
++            return iter([])
+ 
+     def __repr__(self):
+         return "<%s: %s>" % (self.__class__.__name__, self)
+ 
+-    @property
+-    def params_type(self):
+-        return dict if isinstance(self.params, Mapping) else tuple
+-
+-    def __str__(self):
+-        return self.sql % self.params_type(self.params)
+-
+-    def _execute_query(self):
+-        connection = connections[self.using]
+-
+-        # Adapt parameters to the database, as much as possible considering
+-        # that the target type isn't known. See #17755.
+-        params_type = self.params_type
+-        adapter = connection.ops.adapt_unknown_value
+-        if params_type is tuple:
+-            params = tuple(adapter(val) for val in self.params)
+-        elif params_type is dict:
+-            params = {key: adapter(val) for key, val in self.params.items()}
+-        else:
+-            raise RuntimeError("Unexpected params type: %s" % params_type)
+-
+-        self.cursor = connection.cursor()
+-        self.cursor.execute(self.sql, params)
+-
+-
+-class Query(BaseExpression):
+-    """A single SQL query."""
+-
+-    alias_prefix = 'T'
+-    subq_aliases = frozenset([alias_prefix])
+-
+-    compiler = 'SQLCompiler'
+-
+-    def __init__(self, model, where=WhereNode):
+-        self.model = model
+-        self.alias_refcount = {}
+-        # alias_map is the most important data structure regarding joins.
+-        # It's used for recording which joins exist in the query and what
+-        # types they are. The key is the alias of the joined table (possibly
+-        # the table name) and the value is a Join-like object (see
+-        # sql.datastructures.Join for more information).
+-        self.alias_map = {}
+-        # Sometimes the query contains references to aliases in outer queries (as
+-        # a result of split_exclude). Correct alias quoting needs to know these
+-        # aliases too.
+-        self.external_aliases = set()
+-        self.table_map = {}     # Maps table names to list of aliases.
+-        self.default_cols = True
+-        self.default_ordering = True
+-        self.standard_ordering = True
+-        self.used_aliases = set()
+-        self.filter_is_sticky = False
+-        self.subquery = False
+-
+-        # SQL-related attributes
+-        # Select and related select clauses are expressions to use in the
+-        # SELECT clause of the query.
+-        # The select is used for cases where we want to set up the select
+-        # clause to contain other than default fields (values(), subqueries...)
+-        # Note that annotations go to annotations dictionary.
+-        self.select = ()
+-        self.where = where()
+-        self.where_class = where
+-        # The group_by attribute can have one of the following forms:
+-        #  - None: no group by at all in the query
+-        #  - A tuple of expressions: group by (at least) those expressions.
+-        #    String refs are also allowed for now.
+-        #  - True: group by all select fields of the model
+-        # See compiler.get_group_by() for details.
+-        self.group_by = None
+-        self.order_by = ()
+-        self.low_mark, self.high_mark = 0, None  # Used for offset/limit
+-        self.distinct = False
+-        self.distinct_fields = ()
+-        self.select_for_update = False
+-        self.select_for_update_nowait = False
+-        self.select_for_update_skip_locked = False
+-        self.select_for_update_of = ()
+-
+-        self.select_related = False
+-        # Arbitrary limit for select_related to prevents infinite recursion.
+-        self.max_depth = 5
+-
+-        # Holds the selects defined by a call to values() or values_list()
+-        # excluding annotation_select and extra_select.
+-        self.values_select = ()
+-
+-        # SQL annotation-related attributes
+-        self.annotations = {}  # Maps alias -> Annotation Expression
+-        self.annotation_select_mask = None
+-        self._annotation_select_cache = None
+-
+-        # Set combination attributes
+-        self.combinator = None
+-        self.combinator_all = False
+-        self.combined_queries = ()
+-
+-        # These are for extensions. The contents are more or less appended
+-        # verbatim to the appropriate clause.
+-        self.extra = {}  # Maps col_alias -> (col_sql, params).
+-        self.extra_select_mask = None
+-        self._extra_select_cache = None
+-
+-        self.extra_tables = ()
+-        self.extra_order_by = ()
+-
+-        # A tuple that is a set of model field names and either True, if these
+-        # are the fields to defer, or False if these are the only fields to
+-        # load.
+-        self.deferred_loading = (frozenset(), True)
+-
+-        self._filtered_relations = {}
+-
+-        self.explain_query = False
+-        self.explain_format = None
+-        self.explain_options = {}
+-
+-    @property
+-    def output_field(self):
+-        if len(self.select) == 1:
+-            return self.select[0].field
+-        elif len(self.annotation_select) == 1:
+-            return next(iter(self.annotation_select.values())).output_field
+-
+-    @property
+-    def has_select_fields(self):
+-        return bool(self.select or self.annotation_select_mask or self.extra_select_mask)
+-
+-    @cached_property
+-    def base_table(self):
+-        for alias in self.alias_map:
+-            return alias
+-
+-    def __str__(self):
+-        """
+-        Return the query as a string of SQL with the parameter values
+-        substituted in (use sql_with_params() to see the unsubstituted string).
+-
+-        Parameter values won't necessarily be quoted correctly, since that is
+-        done by the database interface at execution time.
+-        """
+-        sql, params = self.sql_with_params()
+-        return sql % params
+-
+-    def sql_with_params(self):
+-        """
+-        Return the query as an SQL string and the parameters that will be
+-        substituted into the query.
+-        """
+-        return self.get_compiler(DEFAULT_DB_ALIAS).as_sql()
+-
+-    def __deepcopy__(self, memo):
+-        """Limit the amount of work when a Query is deepcopied."""
+-        result = self.clone()
+-        memo[id(self)] = result
+-        return result
+-
+     def get_compiler(self, using=None, connection=None):
+         if using is None and connection is None:
+             raise ValueError("Need either using or connection")
+@@ -2108,7 +1963,7 @@ class Query(BaseExpression):
+ 
+         Return a lookup usable for doing outerq.filter(lookup=self) and a
+         boolean indicating if the joins in the prefix contain a LEFT OUTER join.
+-        _"""
++        """
+         all_paths = []
+         for _, paths in names_with_path:
+             all_paths.extend(paths)
+@@ -2120,6 +1975,7 @@ class Query(BaseExpression):
+             t for t in self.alias_map
+             if t in self._lookup_joins or t == self.base_table
+         ]
++        trimmed_paths = 0
+         for trimmed_paths, path in enumerate(all_paths):
+             if path.m2m:
+                 break
+@@ -2158,150 +2014,11 @@ class Query(BaseExpression):
+         else:
+             # TODO: It might be possible to trim more joins from the start of the
+             # inner query if it happens to have a longer join chain containing the
+-            # values in select_fields. Lets punt this one for now.
++            # values in select_fields. Let's punt this one for now.
+             select_fields = [r[1] for r in join_field.related_fields]
+             select_alias = lookup_tables[trimmed_paths]
+-        # The found starting point is likely a Join instead of a BaseTable reference.
+-        # But the first entry in the query's FROM clause must not be a JOIN.
+-        for table in self.alias_map:
+-            if self.alias_refcount[table] > 0:
+-                self.alias_map[table] = BaseTable(self.alias_map[table].table_name, table)
+-                break
+         self.set_select([f.get_col(select_alias) for f in select_fields])
++        # Initialize trimmed_paths if it's not set to avoid UnboundLocalError.
++        if 'trimmed_paths' not in locals():
++            trimmed_paths = 0
+         return trimmed_prefix, contains_louter
+-
+-    def is_nullable(self, field):
+-        """
+-        Check if the given field should be treated as nullable.
+-
+-        Some backends treat '' as null and Django treats such fields as
+-        nullable for those backends. In such situations field.null can be
+-        False even if we should treat the field as nullable.
+-        """
+-        # We need to use DEFAULT_DB_ALIAS here, as QuerySet does not have
+-        # (nor should it have) knowledge of which connection is going to be
+-        # used. The proper fix would be to defer all decisions where
+-        # is_nullable() is needed to the compiler stage, but that is not easy
+-        # to do currently.
+-        return (
+-            connections[DEFAULT_DB_ALIAS].features.interprets_empty_strings_as_nulls and
+-            field.empty_strings_allowed
+-        ) or field.null
+-
+-
+-def get_order_dir(field, default='ASC'):
+-    """
+-    Return the field name and direction for an order specification. For
+-    example, '-foo' is returned as ('foo', 'DESC').
+-
+-    The 'default' param is used to indicate which way no prefix (or a '+'
+-    prefix) should sort. The '-' prefix always sorts the opposite way.
+-    """
+-    dirn = ORDER_DIR[default]
+-    if field[0] == '-':
+-        return field[1:], dirn[1]
+-    return field, dirn[0]
+-
+-
+-def add_to_dict(data, key, value):
+-    """
+-    Add "value" to the set of values for "key", whether or not "key" already
+-    exists.
+-    """
+-    if key in data:
+-        data[key].add(value)
+-    else:
+-        data[key] = {value}
+-
+-
+-def is_reverse_o2o(field):
+-    """
+-    Check if the given field is reverse-o2o. The field is expected to be some
+-    sort of relation field or related object.
+-    """
+-    return field.is_relation and field.one_to_one and not field.concrete
+-
+-
+-class JoinPromoter:
+-    """
+-    A class to abstract away join promotion problems for complex filter
+-    conditions.
+-    """
+-
+-    def __init__(self, connector, num_children, negated):
+-        self.connector = connector
+-        self.negated = negated
+-        if self.negated:
+-            if connector == AND:
+-                self.effective_connector = OR
+-            else:
+-                self.effective_connector = AND
+-        else:
+-            self.effective_connector = self.connector
+-        self.num_children = num_children
+-        # Maps of table alias to how many times it is seen as required for
+-        # inner and/or outer joins.
+-        self.votes = Counter()
+-
+-    def add_votes(self, votes):
+-        """
+-        Add single vote per item to self.votes. Parameter can be any
+-        iterable.
+-        """
+-        self.votes.update(votes)
+-
+-    def update_join_types(self, query):
+-        """
+-        Change join types so that the generated query is as efficient as
+-        possible, but still correct. So, change as many joins as possible
+-        to INNER, but don't make OUTER joins INNER if that could remove
+-        results from the query.
+-        """
+-        to_promote = set()
+-        to_demote = set()
+-        # The effective_connector is used so that NOT (a AND b) is treated
+-        # similarly to (a OR b) for join promotion.
+-        for table, votes in self.votes.items():
+-            # We must use outer joins in OR case when the join isn't contained
+-            # in all of the joins. Otherwise the INNER JOIN itself could remove
+-            # valid results. Consider the case where a model with rel_a and
+-            # rel_b relations is queried with rel_a__col=1 | rel_b__col=2. Now,
+-            # if rel_a join doesn't produce any results is null (for example
+-            # reverse foreign key or null value in direct foreign key), and
+-            # there is a matching row in rel_b with col=2, then an INNER join
+-            # to rel_a would remove a valid match from the query. So, we need
+-            # to promote any existing INNER to LOUTER (it is possible this
+-            # promotion in turn will be demoted later on).
+-            if self.effective_connector == 'OR' and votes < self.num_children:
+-                to_promote.add(table)
+-            # If connector is AND and there is a filter that can match only
+-            # when there is a joinable row, then use INNER. For example, in
+-            # rel_a__col=1 & rel_b__col=2, if either of the rels produce NULL
+-            # as join output, then the col=1 or col=2 can't match (as
+-            # NULL=anything is always false).
+-            # For the OR case, if all children voted for a join to be inner,
+-            # then we can use INNER for the join. For example:
+-            #     (rel_a__col__icontains=Alex | rel_a__col__icontains=Russell)
+-            # then if rel_a doesn't produce any rows, the whole condition
+-            # can't match. Hence we can safely use INNER join.
+-            if self.effective_connector == 'AND' or (
+-                    self.effective_connector == 'OR' and votes == self.num_children):
+-                to_demote.add(table)
+-            # Finally, what happens in cases where we have:
+-            #    (rel_a__col=1|rel_b__col=2) & rel_a__col__gte=0
+-            # Now, we first generate the OR clause, and promote joins for it
+-            # in the first if branch above. Both rel_a and rel_b are promoted
+-            # to LOUTER joins. After that we do the AND case. The OR case
+-            # voted no inner joins but the rel_a__col__gte=0 votes inner join
+-            # for rel_a. We demote it back to INNER join (in AND case a single
+-            # vote is enough). The demotion is OK, if rel_a doesn't produce
+-            # rows, then the rel_a__col__gte=0 clause can't be true, and thus
+-            # the whole clause must be false. So, it is safe to use INNER
+-            # join.
+-            # Note that in this example we could just as well have the __gte
+-            # clause and the OR clause swapped. Or we could replace the __gte
+-            # clause with an OR clause containing rel_a__col=1|rel_a__col=2,
+-            # and again we could safely demote to INNER.
+-        query.promote_joins(to_promote)
+-        query.demote_joins(to_demote)
+-        return to_demote

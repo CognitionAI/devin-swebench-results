@@ -1,0 +1,41 @@
+diff --git a/sympy/core/function.py b/sympy/core/function.py
+index efafd5a59a..0f97fe5b05 100644
+--- a/sympy/core/function.py
++++ b/sympy/core/function.py
+@@ -2495,6 +2495,8 @@ def count_ops(expr, visual=False):
+     from sympy.simplify.radsimp import fraction
+     from sympy.logic.boolalg import BooleanFunction
+ 
++    print("Counting operations in expression: {}".format(expr))
++
+     expr = sympify(expr)
+     if isinstance(expr, Expr):
+ 
+@@ -2504,6 +2506,7 @@ def count_ops(expr, visual=False):
+         DIV = Symbol('DIV')
+         SUB = Symbol('SUB')
+         ADD = Symbol('ADD')
++        print("Entering while loop with args:", args)
+         while args:
+             a = args.pop()
+ 
+@@ -2577,9 +2580,11 @@ def count_ops(expr, visual=False):
+                 args.extend(a.args)
+ 
+     elif type(expr) is dict:
++        print("Before recursive calls in dict branch, current ops:", ops)
+         ops = [count_ops(k, visual=visual) +
+                count_ops(v, visual=visual) for k, v in expr.items()]
+     elif iterable(expr):
++        print("Before recursive calls in iterable branch, current ops:", ops)
+         ops = [count_ops(i, visual=visual) for i in expr]
+     elif isinstance(expr, BooleanFunction):
+         ops = []
+@@ -2616,6 +2621,7 @@ def count_ops(expr, visual=False):
+         return 0
+ 
+     ops = Add(*ops)
++    print("Before final summation, ops:", ops)
+ 
+     if visual:
+         return ops

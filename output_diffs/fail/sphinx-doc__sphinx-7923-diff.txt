@@ -1,0 +1,163 @@
+diff --git a/doc/conf.py b/doc/conf.py
+index f62e02a34..7b905ad5f 100644
+--- a/doc/conf.py
++++ b/doc/conf.py
+@@ -4,6 +4,7 @@ import re
+ 
+ import sphinx
+ 
++autosummary_mock_imports = ['noodle', 'foo', 'foobar']
+ 
+ extensions = ['sphinx.ext.autodoc', 'sphinx.ext.doctest', 'sphinx.ext.todo',
+               'sphinx.ext.autosummary', 'sphinx.ext.extlinks',
+diff --git a/setup.py b/setup.py
+index a404f1fa5..250ef5b61 100644
+--- a/setup.py
++++ b/setup.py
+@@ -21,7 +21,7 @@ install_requires = [
+     'sphinxcontrib-htmlhelp',
+     'sphinxcontrib-serializinghtml',
+     'sphinxcontrib-qthelp',
+-    'Jinja2>=2.3',
++    'Jinja2<3.1',
+     'Pygments>=2.0',
+     'docutils>=0.12',
+     'snowballstemmer>=1.1',
+diff --git a/sphinx/ext/autosummary/__init__.py b/sphinx/ext/autosummary/__init__.py
+index 0984377c5..ffe3c57f5 100644
+--- a/sphinx/ext/autosummary/__init__.py
++++ b/sphinx/ext/autosummary/__init__.py
+@@ -60,8 +60,7 @@ import sys
+ import warnings
+ from os import path
+ from types import ModuleType
+-from typing import Any, Dict, List, Tuple
+-from typing import cast
++from typing import Any, Dict, List, Tuple, Type, cast
+ 
+ from docutils import nodes
+ from docutils.nodes import Element, Node, system_message
+@@ -88,10 +87,6 @@ from sphinx.util.docutils import (
+ from sphinx.util.matching import Matcher
+ from sphinx.writers.html import HTMLTranslator
+ 
+-if False:
+-    # For type annotation
+-    from typing import Type  # for python3.5.1
+-
+ 
+ logger = logging.getLogger(__name__)
+ 
+@@ -729,15 +724,21 @@ def get_rst_suffix(app: Sphinx) -> str:
+ 
+ 
+ def process_generate_options(app: Sphinx) -> None:
++    print("Starting process_generate_options")
+     genfiles = app.config.autosummary_generate
++    print("genfiles value:", genfiles)
+ 
+     if genfiles is True:
++        print("genfiles is True")
+         env = app.builder.env
+         genfiles = [env.doc2path(x, base=None) for x in env.found_docs
+                     if os.path.isfile(env.doc2path(x))]
++        print("genfiles after processing:", genfiles)
+     elif genfiles is False:
++        print("genfiles is False")
+         pass
+     else:
++        print("genfiles is a list")
+         ext = list(app.config.source_suffix)
+         genfiles = [genfile + (ext[0] if not genfile.endswith(tuple(ext)) else '')
+                     for genfile in genfiles]
+@@ -746,11 +747,14 @@ def process_generate_options(app: Sphinx) -> None:
+             if not path.isfile(path.join(app.srcdir, entry)):
+                 logger.warning(__('autosummary_generate: file not found: %s'), entry)
+                 genfiles.remove(entry)
++        print("genfiles after processing:", genfiles)
+ 
+     if not genfiles:
++        print("No genfiles to process")
+         return
+ 
+     suffix = get_rst_suffix(app)
++    print("suffix:", suffix)
+     if suffix is None:
+         logger.warning(__('autosummary generats .rst files internally. '
+                           'But your source_suffix does not contain .rst. Skipped.'))
+@@ -760,10 +764,15 @@ def process_generate_options(app: Sphinx) -> None:
+ 
+     imported_members = app.config.autosummary_imported_members
+     with mock(app.config.autosummary_mock_imports):
+-        generate_autosummary_docs(genfiles, suffix=suffix, base_path=app.srcdir,
+-                                  app=app, imported_members=imported_members,
+-                                  overwrite=app.config.autosummary_generate_overwrite,
+-                                  encoding=app.config.source_encoding)
++        print("Calling generate_autosummary_docs")
++        try:
++            generate_autosummary_docs(genfiles, suffix=suffix, base_path=app.srcdir,
++                                      app=app, imported_members=imported_members,
++                                      overwrite=app.config.autosummary_generate_overwrite,
++                                      encoding=app.config.source_encoding)
++        except Exception as e:
++            print("Exception occurred during generate_autosummary_docs:", e)
++            raise
+ 
+ 
+ def setup(app: Sphinx) -> Dict[str, Any]:
+diff --git a/sphinx/io.py b/sphinx/io.py
+index f45d5bf5d..b8a987d33 100644
+--- a/sphinx/io.py
++++ b/sphinx/io.py
+@@ -40,7 +40,6 @@ from sphinx.versioning import UIDTransform
+ if False:
+     # For type annotation
+     from typing import Type  # for python3.5.1
+-    from sphinx.application import Sphinx
+ 
+ 
+ logger = logging.getLogger(__name__)
+@@ -56,8 +55,7 @@ class SphinxBaseReader(standalone.Reader):
+     transforms = []  # type: List[Type[Transform]]
+ 
+     def __init__(self, *args: Any, **kwargs: Any) -> None:
+-        from sphinx.application import Sphinx
+-        if len(args) > 0 and isinstance(args[0], Sphinx):
++        if len(args) > 0 and isinstance(args[0], "Sphinx"):
+             self._app = args[0]
+             self._env = self._app.env
+             args = args[1:]
+@@ -114,6 +112,7 @@ class SphinxStandaloneReader(SphinxBaseReader):
+     """
+ 
+     def setup(self, app: "Sphinx") -> None:
++        app.connect('source-read', append_rst_epilog)
+         self.transforms = self.transforms + app.registry.get_transforms()
+         super().setup(app)
+ 
+@@ -157,6 +156,12 @@ class SphinxI18nReader(SphinxBaseReader):
+                 self.transforms.remove(transform)
+ 
+ 
++def append_rst_epilog(app: "Sphinx", docname: str, source: List[str]) -> None:
++    """Append rst_epilog content to the source text."""
++    if app.config.rst_epilog:
++        source[0] += '\n' + app.config.rst_epilog
++
++
+ class SphinxDummyWriter(UnfilteredWriter):
+     """Dummy writer module used for generating doctree."""
+ 
+diff --git a/tox.ini b/tox.ini
+index ccfd60f84..c5ac3713f 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -28,7 +28,7 @@ extras =
+ setenv =
+     PYTHONWARNINGS = all,ignore::ImportWarning:importlib._bootstrap_external,ignore::DeprecationWarning:site,ignore::DeprecationWarning:distutils
+ commands=
+-    pytest --durations 25 {posargs}
++    pytest -rA --durations 25 {posargs}
+ 
+ [testenv:flake8]
+ basepython = python3

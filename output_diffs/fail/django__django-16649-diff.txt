@@ -1,0 +1,15 @@
+diff --git a/django/db/models/query.py b/django/db/models/query.py
+index 56ad4d5c20..34240a5ad4 100644
+--- a/django/db/models/query.py
++++ b/django/db/models/query.py
+@@ -1628,7 +1628,9 @@ class QuerySet(AltersData):
+                 )
+             )
+ 
+-        for alias, annotation in annotations.items():
++        # Sort annotations by their alias before adding them to the QuerySet.
++        sorted_annotations = sorted(annotations.items())
++        for alias, annotation in sorted_annotations:
+             if alias in names:
+                 raise ValueError(
+                     "The annotation '%s' conflicts with a field on "

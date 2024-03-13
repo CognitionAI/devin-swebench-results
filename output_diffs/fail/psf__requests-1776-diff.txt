@@ -1,0 +1,116 @@
+diff --git a/requests/sessions.py b/requests/sessions.py
+index cdce6484..8c1d47d9 100644
+--- a/requests/sessions.py
++++ b/requests/sessions.py
+@@ -9,7 +9,7 @@ requests (cookies, auth, proxies).
+ 
+ """
+ import os
+-from collections import Mapping
++from collections.abc import Mapping
+ from datetime import datetime
+ 
+ from .compat import cookielib, OrderedDict, urljoin, urlparse, builtin_str
+@@ -41,25 +41,19 @@ def merge_setting(request_setting, session_setting, dict_class=OrderedDict):
+     explicit setting on that request, and the setting in the session. If a
+     setting is a dictionary, they will be merged together using `dict_class`
+     """
+-
+     if session_setting is None:
+-        return request_setting
+-
++        session_setting = dict_class()
+     if request_setting is None:
+-        return session_setting
+-
+-    # Bypass if not a dictionary (e.g. verify)
+-    if not (
+-            isinstance(session_setting, Mapping) and
+-            isinstance(request_setting, Mapping)
+-    ):
+-        return request_setting
++        request_setting = dict_class()
+ 
+-    merged_setting = dict_class(to_key_val_list(session_setting))
+-    merged_setting.update(to_key_val_list(request_setting))
++    merged_setting = dict_class()
++    if isinstance(session_setting, Mapping):
++        merged_setting.update(to_key_val_list(session_setting))
++    if isinstance(request_setting, Mapping):
++        merged_setting.update(to_key_val_list(request_setting))
+ 
+     # Remove keys that are set to None.
+-    for (k, v) in request_setting.items():
++    for (k, v) in list(merged_setting.items()):
+         if v is None:
+             del merged_setting[k]
+ 
+@@ -345,8 +339,11 @@ class Session(SessionRedirectMixin):
+         )
+         prep = self.prepare_request(req)
+ 
+-        # Add param cookies to session cookies
+-        self.cookies = merge_cookies(self.cookies, cookies)
++        # Use request cookies if provided, otherwise use session cookies
++        if cookies:
++            prep.prepare_cookies(cookies)
++        else:
++            prep.prepare_cookies(self.cookies)
+ 
+         proxies = proxies or {}
+ 
+diff --git a/requests/utils.py b/requests/utils.py
+index 57292c35..2291368c 100644
+--- a/requests/utils.py
++++ b/requests/utils.py
+@@ -26,6 +26,7 @@ from .compat import (quote, urlparse, bytes, str, OrderedDict, unquote, is_py2,
+ from .cookies import RequestsCookieJar, cookiejar_from_dict
+ from .structures import CaseInsensitiveDict
+ from .exceptions import MissingSchema, InvalidURL
++from collections.abc import Mapping
+ 
+ _hush_pyflakes = (RequestsCookieJar,)
+ 
+@@ -144,7 +145,7 @@ def to_key_val_list(value):
+         ValueError: cannot encode objects that are not 2-tuples.
+     """
+     if value is None:
+-        return None
++        return []
+ 
+     if isinstance(value, (str, bytes, bool, int)):
+         raise ValueError('cannot encode objects that are not 2-tuples')
+@@ -359,10 +360,10 @@ def get_unicode_from_response(r):
+             tried_encodings.append(encoding)
+ 
+     # Fall back:
+-    try:
++    if encoding is not None:
+         return str(r.content, encoding, errors='replace')
+-    except TypeError:
+-        return r.content
++    else:
++        return str(r.content, 'utf-8', errors='replace')
+ 
+ 
+ # The unreserved URI characters (RFC 3986)
+@@ -444,11 +445,14 @@ def default_user_agent():
+     if _implementation == 'CPython':
+         _implementation_version = platform.python_version()
+     elif _implementation == 'PyPy':
+-        _implementation_version = '%s.%s.%s' % (sys.pypy_version_info.major,
+-                                                sys.pypy_version_info.minor,
+-                                                sys.pypy_version_info.micro)
+-        if sys.pypy_version_info.releaselevel != 'final':
+-            _implementation_version = ''.join([_implementation_version, sys.pypy_version_info.releaselevel])
++        if hasattr(sys, 'pypy_version_info'):
++            _implementation_version = '%s.%s.%s' % (sys.pypy_version_info.major,
++                                                    sys.pypy_version_info.minor,
++                                                    sys.pypy_version_info.micro)
++            if sys.pypy_version_info.releaselevel != 'final':
++                _implementation_version = ''.join([_implementation_version, sys.pypy_version_info.releaselevel])
++        else:
++            _implementation_version = 'Unknown'
+     elif _implementation == 'Jython':
+         _implementation_version = platform.python_version()  # Complete Guess
+     elif _implementation == 'IronPython':

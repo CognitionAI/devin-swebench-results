@@ -1,0 +1,145 @@
+diff --git a/sympy/stats/crv.py b/sympy/stats/crv.py
+index 6efd5571e8..7fdcce5bbc 100644
+--- a/sympy/stats/crv.py
++++ b/sympy/stats/crv.py
+@@ -20,6 +20,7 @@
+ from sympy.solvers.solveset import solveset
+ from sympy.solvers.inequalities import reduce_rational_inequalities
+ from sympy.polys.polyerrors import PolynomialError
++from sympy import asin, sqrt, pi
+ import random
+ 
+ 
+@@ -114,6 +115,8 @@ def integrate(self, expr, variables=None, **kwargs):
+                             # Make condition into an Interval like [0, oo]
+                             cintvl = reduce_rational_inequalities_wrap(
+                                 cond, symbol)
++                            if cintvl is None:
++                                raise ValueError("Condition %s could not be reduced to an interval" % cond)
+                             # Make limit into an Interval like [-oo, oo]
+                             lintvl = Interval(limit[1], limit[2])
+                             # Intersect them to get [0, oo]
+@@ -132,8 +135,11 @@ def as_boolean(self):
+     @property
+     def set(self):
+         if len(self.symbols) == 1:
+-            return (self.fulldomain.set & reduce_rational_inequalities_wrap(
+-                self.condition, tuple(self.symbols)[0]))
++            cintvl = reduce_rational_inequalities_wrap(
++                self.condition, tuple(self.symbols)[0])
++            if cintvl is None:
++                return S.EmptySet
++            return (self.fulldomain.set & cintvl)
+         else:
+             raise NotImplementedError(
+                 "Set of Conditional Domain not Implemented")
+@@ -209,7 +215,12 @@ def compute_cdf(self, **kwargs):
+         return Lambda(z, cdf)
+ 
+     def _cdf(self, x):
+-        return None
++        a, b = self.a, self.b
++        return Piecewise(
++            (0, x <= a),
++            ((asin(sqrt((x - a)/(b - a))) + pi/2)/pi, And(a < x, x < b)),
++            (1, x >= b)
++        )
+ 
+     def cdf(self, x, **kwargs):
+         """ Cumulative density function """
+@@ -364,7 +375,10 @@ def where(self, condition):
+                 "Multiple continuous random variables not supported")
+         rv = tuple(rvs)[0]
+         interval = reduce_rational_inequalities_wrap(condition, rv)
+-        interval = interval.intersect(self.domain.set)
++        if interval is None:
++            interval = S.EmptySet
++        else:
++            interval = interval.intersect(self.domain.set)
+         return SingleContinuousDomain(rv.symbol, interval)
+ 
+     def conditional_space(self, condition, normalize=True, **kwargs):
+diff --git a/sympy/stats/crv_types.py b/sympy/stats/crv_types.py
+index fff7da80ae..5111ed300c 100644
+--- a/sympy/stats/crv_types.py
++++ b/sympy/stats/crv_types.py
+@@ -50,6 +50,7 @@
+                    Lambda, Basic, lowergamma, erf, erfc, I)
+ from sympy import beta as beta_fn
+ from sympy import cos, exp, besseli
++from sympy.functions.elementary.trigonometric import asin
+ from sympy.stats.crv import (SingleContinuousPSpace, SingleContinuousDistribution,
+         ContinuousDistributionHandmade)
+ from sympy.stats.rv import _value_check
+@@ -150,9 +151,21 @@ def rv(symbol, cls, args):
+ class ArcsinDistribution(SingleContinuousDistribution):
+     _argnames = ('a', 'b')
+ 
++    @classmethod
++    def check(cls, a, b):
++        _value_check(a < b, "a must be less than b")
++
+     def pdf(self, x):
+         return 1/(pi*sqrt((x - self.a)*(self.b - x)))
+ 
++    def _cdf(self, x):
++        a, b = self.a, self.b
++        return Piecewise(
++            (0, x <= a),
++            ((asin(sqrt((x - a)/(b - a))) + pi/2)/pi, And(a < x, x < b)),
++            (1, x >= b)
++        )
++
+ def Arcsin(name, a=0, b=1):
+     r"""
+     Create a Continuous Random Variable with an arcsin distribution.
+@@ -195,7 +208,6 @@ def Arcsin(name, a=0, b=1):
+ 
+     .. [1] http://en.wikipedia.org/wiki/Arcsine_distribution
+     """
+-
+     return rv(name, ArcsinDistribution, (a, b))
+ 
+ #-------------------------------------------------------------------------------
+@@ -1347,7 +1359,6 @@ def Gompertz(name, b, eta):
+ 
+     Examples
+     ========
+-
+     >>> from sympy.stats import Gompertz, density, E, variance
+     >>> from sympy import Symbol, simplify, pprint
+ 
+@@ -1899,7 +1910,7 @@ def _cdf(self, x):
+ 
+ def Pareto(name, xm, alpha):
+     r"""
+-    Create a continuous random variable with the Pareto distribution.
++    Create a continuous random variable with a Pareto distribution.
+ 
+     The density of the Pareto distribution is given by
+ 
+@@ -1946,6 +1957,7 @@ def Pareto(name, xm, alpha):
+ #-------------------------------------------------------------------------------
+ # QuadraticU distribution ------------------------------------------------------
+ 
++
+ class QuadraticUDistribution(SingleContinuousDistribution):
+     _argnames = ('a', 'b')
+ 
+@@ -2385,11 +2397,11 @@ def Triangular(name, a, b, c):
+ 
+     .. math::
+         f(x) := \begin{cases}
+-                  0 & \mathrm{for\ } x < a, \\
+-                  \frac{2(x-a)}{(b-a)(c-a)} & \mathrm{for\ } a \le x < c, \\
+-                  \frac{2}{b-a} & \mathrm{for\ } x = c, \\
+-                  \frac{2(b-x)}{(b-a)(b-c)} & \mathrm{for\ } c < x \le b, \\
+-                  0 & \mathrm{for\ } b < x.
++                  0 & \text{for } x < a, \\
++                  \frac{2(x-a)}{(b-a)(c-a)} & \text{for } a \le x < c, \\
++                  \frac{2}{b-a} & \text{for } x = c, \\
++                  \frac{2(b-x)}{(b-a)(b-c)} & \text{for } c < x \le b, \\
++                  0 & \text{for } b < x.
+                 \end{cases}
+ 
+     Parameters

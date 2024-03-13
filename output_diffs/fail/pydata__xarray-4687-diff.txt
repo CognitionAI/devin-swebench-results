@@ -1,0 +1,33 @@
+diff --git a/xarray/core/ops.py b/xarray/core/ops.py
+index 8265035a..20030648 100644
+--- a/xarray/core/ops.py
++++ b/xarray/core/ops.py
+@@ -154,7 +154,7 @@ def fillna(data, other, join="left", dataset_join="left"):
+     )
+ 
+ 
+-def where_method(self, cond, other=dtypes.NA):
++def where_method(self, cond, other=dtypes.NA, keep_attrs=False):
+     """Return elements from `self` or `other` depending on `cond`.
+ 
+     Parameters
+@@ -164,6 +164,10 @@ def where_method(self, cond, other=dtypes.NA):
+     other : scalar, DataArray or Dataset, optional
+         Value to use for locations in this object where ``cond`` is False.
+         By default, inserts missing values.
++    keep_attrs : bool, optional
++        If True, the attributes (`attrs`) will be copied from the original
++        object to the new one. If False (default), the new object will be
++        returned without attributes.
+ 
+     Returns
+     -------
+@@ -181,7 +185,7 @@ def where_method(self, cond, other=dtypes.NA):
+         join=join,
+         dataset_join=join,
+         dask="allowed",
+-        keep_attrs=True,
++        keep_attrs=keep_attrs,
+     )
+ 
+ 

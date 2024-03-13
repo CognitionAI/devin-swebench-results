@@ -1,0 +1,69 @@
+diff --git a/xarray/core/dataarray.py b/xarray/core/dataarray.py
+index 807badde..e34efedc 100644
+--- a/xarray/core/dataarray.py
++++ b/xarray/core/dataarray.py
+@@ -2829,7 +2829,7 @@ class DataArray(AbstractArray, DataWithCoords):
+         q: Any,
+         dim: Union[Hashable, Sequence[Hashable], None] = None,
+         interpolation: str = "linear",
+-        keep_attrs: bool = None,
++        keep_attrs: bool = False,  # Changed from None to False
+     ) -> "DataArray":
+         """Compute the qth quantile of the data along the specified dimension.
+ 
+@@ -2871,11 +2871,41 @@ class DataArray(AbstractArray, DataWithCoords):
+         --------
+         numpy.nanpercentile, pandas.Series.quantile, Dataset.quantile
+         """
++        # Here we replace the existing method with the correct handling of keep_attrs
++        from . import computation
++
++        if isinstance(q, (Sequence, np.ndarray)):
++            q = np.asarray(q, dtype=np.float64)
++
++        scalar = np.isscalar(q) or (isinstance(q, np.ndarray) and q.ndim == 0)
+ 
+-        ds = self._to_temp_dataset().quantile(
+-            q, dim=dim, keep_attrs=keep_attrs, interpolation=interpolation
++        new_dims = [dim] if isinstance(dim, str) or not isinstance(dim, Iterable) else dim
++        if new_dims is not None:
++            new_dims = list(new_dims)
++        else:
++            new_dims = list(self.dims)
++
++        # Only add the quantile dimension if q is array-like
++        if not scalar:
++            new_dims = ["quantile"] + new_dims
++
++        q = np.atleast_1d(np.asarray(q, dtype=np.float64))
++        result = self.reduce(
++            np.quantile,
++            dim=new_dims,
++            q=q,
++            keep_attrs=keep_attrs,
++            interpolation=interpolation,
++            keepdims=True,
+         )
+-        return self._from_temp_dataset(ds)
++
++        # Fixes for better handling of quantile coordinates
++        if scalar:
++            result = result.squeeze("quantile")
++        else:
++            result["quantile"] = Variable(("quantile",), q)
++
++        return result
+ 
+     def rank(
+         self, dim: Hashable, pct: bool = False, keep_attrs: bool = None
+@@ -2976,7 +3006,9 @@ class DataArray(AbstractArray, DataWithCoords):
+         return self._from_temp_dataset(ds)
+ 
+     def integrate(
+-        self, dim: Union[Hashable, Sequence[Hashable]], datetime_unit: str = None
++        self,
++        dim: Union[Hashable, Sequence[Hashable]],
++        datetime_unit: str = None
+     ) -> "DataArray":
+         """ integrate the array with the trapezoidal rule.
+ 

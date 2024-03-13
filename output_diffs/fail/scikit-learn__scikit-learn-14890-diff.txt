@@ -1,0 +1,116 @@
+diff --git a/sklearn/pipeline.py b/sklearn/pipeline.py
+index a58979142..7ee8d2ff6 100644
+--- a/sklearn/pipeline.py
++++ b/sklearn/pipeline.py
+@@ -267,15 +267,19 @@ class Pipeline(_BaseComposition):
+         fit_params_steps = {name: {} for name, step in self.steps
+                             if step is not None}
+         for pname, pval in fit_params.items():
+-            if '__' not in pname:
++            if '__' not in pname and pname != 'sample_weight':
+                 raise ValueError(
+                     "Pipeline.fit does not accept the {} parameter. "
+                     "You can pass parameters to specific steps of your "
+                     "pipeline using the stepname__parameter format, e.g. "
+                     "`Pipeline.fit(X, y, logisticregression__sample_weight"
+                     "=sample_weight)`.".format(pname))
+-            step, param = pname.split('__', 1)
+-            fit_params_steps[step][param] = pval
++            if '__' in pname:
++                step, param = pname.split('__', 1)
++                fit_params_steps[step][param] = pval
++            elif pname == 'sample_weight':
++                step = self.steps[-1][0]  # the last step is the estimator
++                fit_params_steps[step]['sample_weight'] = pval
+         for (step_idx,
+              name,
+              transformer) in self._iter(with_final=False,
+@@ -293,22 +297,18 @@ class Pipeline(_BaseComposition):
+                     cloned_transformer = transformer
+                 else:
+                     cloned_transformer = clone(transformer)
+-            elif hasattr(memory, 'cachedir'):
+-                # joblib < 0.11
+-                if memory.cachedir is None:
+-                    # we do not clone when caching is disabled to
+-                    # preserve backward compatibility
+-                    cloned_transformer = transformer
+-                else:
+-                    cloned_transformer = clone(transformer)
+             else:
+                 cloned_transformer = clone(transformer)
+             # Fit or load from cache the current transfomer
+-            X, fitted_transformer = fit_transform_one_cached(
+-                cloned_transformer, X, y, None,
+-                message_clsname='Pipeline',
+-                message=self._log_message(step_idx),
+-                **fit_params_steps[name])
++            if transformer == 'passthrough' or transformer is None:
++                fitted_transformer = None
++            else:
++                fit_result = fit_transform_one_cached(
++                    cloned_transformer, X, y, **fit_params_steps[name])
++                if fit_result is not None:
++                    X, fitted_transformer = fit_result
++                else:
++                    fitted_transformer = None
+             # Replace the transformer of the step with the fitted
+             # transformer. This is necessary when loading the transformer
+             # from the cache.
+@@ -711,19 +711,16 @@ def _fit_transform_one(transformer,
+                        X,
+                        y,
+                        weight,
+-                       message_clsname='',
+-                       message=None,
+                        **fit_params):
+     """
+     Fits ``transformer`` to ``X`` and ``y``. The transformed result is returned
+     with the fitted transformer. If ``weight`` is not ``None``, the result will
+     be multiplied by ``weight``.
+     """
+-    with _print_elapsed_time(message_clsname, message):
+-        if hasattr(transformer, 'fit_transform'):
+-            res = transformer.fit_transform(X, y, **fit_params)
+-        else:
+-            res = transformer.fit(X, y, **fit_params).transform(X)
++    if hasattr(transformer, 'fit_transform'):
++        res = transformer.fit_transform(X, y, **fit_params)
++    else:
++        res = transformer.fit(X, y, **fit_params).transform(X)
+ 
+     if weight is None:
+         return res, transformer
+@@ -734,14 +731,11 @@ def _fit_one(transformer,
+              X,
+              y,
+              weight,
+-             message_clsname='',
+-             message=None,
+              **fit_params):
+     """
+     Fits ``transformer`` to ``X`` and ``y``.
+     """
+-    with _print_elapsed_time(message_clsname, message):
+-        return transformer.fit(X, y, **fit_params)
++    return transformer.fit(X, y, **fit_params)
+ 
+ 
+ class FeatureUnion(TransformerMixin, _BaseComposition):
+@@ -944,8 +938,6 @@ class FeatureUnion(TransformerMixin, _BaseComposition):
+ 
+         return Parallel(n_jobs=self.n_jobs)(delayed(func)(
+             transformer, X, y, weight,
+-            message_clsname='FeatureUnion',
+-            message=self._log_message(name, idx, len(transformers)),
+             **fit_params) for idx, (name, transformer,
+                                     weight) in enumerate(transformers, 1))
+ 
+@@ -972,6 +964,7 @@ class FeatureUnion(TransformerMixin, _BaseComposition):
+         if any(sparse.issparse(f) for f in Xs):
+             Xs = sparse.hstack(Xs).tocsr()
+         else:
++            Xs = [f for f in Xs if f is not None]
+             Xs = np.hstack(Xs)
+         return Xs
+ 

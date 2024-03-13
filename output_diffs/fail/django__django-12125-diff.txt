@@ -1,0 +1,28 @@
+diff --git a/django/db/migrations/writer.py b/django/db/migrations/writer.py
+index 4918261fb0..23ac31e0d4 100644
+--- a/django/db/migrations/writer.py
++++ b/django/db/migrations/writer.py
+@@ -268,7 +268,22 @@ class MigrationWriter:
+ 
+     @classmethod
+     def serialize(cls, value):
+-        return serializer_factory(value).serialize()
++        # Check if the value is a class and is defined within another class
++        if isinstance(value, type) and value.__module__ != "__builtin__" and "." in value.__name__:
++            # Get the full class path
++            class_path = value.__module__ + "." + value.__name__
++            # Replace the last dot with an inner class reference symbol
++            class_path = class_path.rsplit('.', 1)[0] + "." + class_path.rsplit('.', 1)[1]
++            return repr(class_path), set()
++        else:
++            # Ensure the standard serialization process returns a tuple
++            serialized_value = serializer_factory(value).serialize()
++            if serialized_value is None:
++                # Handle the None case by returning a default string representation and an empty set of imports
++                return repr(value), set()
++            if not isinstance(serialized_value, tuple):
++                return serialized_value, set()
++            return serialized_value
+ 
+     @classmethod
+     def register_serializer(cls, type_, serializer):

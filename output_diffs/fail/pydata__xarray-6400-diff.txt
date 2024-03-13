@@ -1,0 +1,24 @@
+diff --git a/xarray/core/formatting_html.py b/xarray/core/formatting_html.py
+index db62466a..05342bc2 100644
+--- a/xarray/core/formatting_html.py
++++ b/xarray/core/formatting_html.py
+@@ -24,10 +24,18 @@ def _load_static_files():
+ 
+ def short_data_repr_html(array):
+     """Format "data" for DataArray and Variable."""
++    threshold = 10000  # example threshold, actual value to be determined
++
+     internal_data = getattr(array, "variable", array)._data
+     if hasattr(internal_data, "_repr_html_"):
+         return internal_data._repr_html_()
+-    text = escape(short_data_repr(array))
++    elif internal_data.size > threshold:
++        # Process only a subset of the data if above the threshold
++        subset = internal_data[:threshold]  # this is a simplification, actual slicing logic may vary
++        text = escape(short_data_repr(subset))
++    else:
++        # Process the entire data if below the threshold
++        text = escape(short_data_repr(internal_data))
+     return f"<pre>{text}</pre>"
+ 
+ 

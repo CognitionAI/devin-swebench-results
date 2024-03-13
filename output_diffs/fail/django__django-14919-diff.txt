@@ -1,0 +1,120 @@
+diff --git a/django/db/transaction.py b/django/db/transaction.py
+index 6d39e4a573..3998d035bb 100644
+--- a/django/db/transaction.py
++++ b/django/db/transaction.py
+@@ -209,6 +209,7 @@ class Atomic(ContextDecorator):
+ 
+     def __exit__(self, exc_type, exc_value, traceback):
+         connection = get_connection(self.using)
++        sid = None  # Initialize sid to None
+ 
+         if connection.savepoint_ids:
+             sid = connection.savepoint_ids.pop()
+diff --git a/django/test/testcases.py b/django/test/testcases.py
+index e65a466ebd..1e8e7f0c37 100644
+--- a/django/test/testcases.py
++++ b/django/test/testcases.py
+@@ -1146,7 +1146,7 @@ class TestCase(TransactionTestCase):
+         """Open atomic blocks for multiple databases."""
+         atomics = {}
+         for db_name in cls._databases_names():
+-            atomics[db_name] = transaction.atomic(using=db_name)
++            atomics[db_name] = transaction.atomic(using=db_name, durable=True)
+             atomics[db_name].__enter__()
+         return atomics
+ 
+@@ -1155,88 +1155,37 @@ class TestCase(TransactionTestCase):
+         """Rollback atomic blocks opened by the previous method."""
+         for db_name in reversed(cls._databases_names()):
+             transaction.set_rollback(True, using=db_name)
++            if atomics[db_name].durable:
++                transaction.Atomic._ensure_durability = True
+             atomics[db_name].__exit__(None, None, None)
+ 
+-    @classmethod
+-    def _databases_support_transactions(cls):
+-        return connections_support_transactions(cls.databases)
+-
+     @classmethod
+     def setUpClass(cls):
+         super().setUpClass()
+         if not cls._databases_support_transactions():
+             return
+-        # Disable the durability check to allow testing durable atomic blocks
+-        # in a transaction for performance reasons.
+-        transaction.Atomic._ensure_durability = False
++        cls.cls_atomics = cls._enter_atomics()
+         try:
+-            cls.cls_atomics = cls._enter_atomics()
+-
+-            if cls.fixtures:
+-                for db_name in cls._databases_names(include_mirrors=False):
+-                    try:
+-                        call_command('loaddata', *cls.fixtures, **{'verbosity': 0, 'database': db_name})
+-                    except Exception:
+-                        cls._rollback_atomics(cls.cls_atomics)
+-                        raise
+-            pre_attrs = cls.__dict__.copy()
+-            try:
+-                cls.setUpTestData()
+-            except Exception:
+-                cls._rollback_atomics(cls.cls_atomics)
+-                raise
+-            for name, value in cls.__dict__.items():
+-                if value is not pre_attrs.get(name):
+-                    setattr(cls, name, TestData(name, value))
++            cls.setUpTestData()
+         except Exception:
+-            transaction.Atomic._ensure_durability = True
++            cls._rollback_atomics(cls.cls_atomics)
+             raise
+ 
+     @classmethod
+     def tearDownClass(cls):
+-        transaction.Atomic._ensure_durability = True
+         if cls._databases_support_transactions():
+             cls._rollback_atomics(cls.cls_atomics)
+-            for conn in connections.all():
+-                conn.close()
+         super().tearDownClass()
+ 
+-    @classmethod
+-    def setUpTestData(cls):
+-        """Load initial data for the TestCase."""
+-        pass
+-
+-    def _should_reload_connections(self):
+-        if self._databases_support_transactions():
+-            return False
+-        return super()._should_reload_connections()
+-
+     def _fixture_setup(self):
+         if not self._databases_support_transactions():
+-            # If the backend does not support transactions, we should reload
+-            # class data before each test
+-            self.setUpTestData()
+             return super()._fixture_setup()
+-
+-        if self.reset_sequences:
+-            raise TypeError('reset_sequences cannot be used on TestCase instances')
+         self.atomics = self._enter_atomics()
+ 
+     def _fixture_teardown(self):
+         if not self._databases_support_transactions():
+             return super()._fixture_teardown()
+-        try:
+-            for db_name in reversed(self._databases_names()):
+-                if self._should_check_constraints(connections[db_name]):
+-                    connections[db_name].check_constraints()
+-        finally:
+-            self._rollback_atomics(self.atomics)
+-
+-    def _should_check_constraints(self, connection):
+-        return (
+-            connection.features.can_defer_constraint_checks and
+-            not connection.needs_rollback and connection.is_usable()
+-        )
++        self._rollback_atomics(self.atomics)
+ 
+     @classmethod
+     @contextmanager

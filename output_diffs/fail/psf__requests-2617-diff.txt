@@ -1,0 +1,36 @@
+diff --git a/requests/models.py b/requests/models.py
+index e2055fe2..148b0f95 100644
+--- a/requests/models.py
++++ b/requests/models.py
+@@ -125,9 +125,16 @@ class RequestEncodingMixin(object):
+                     if not isinstance(v, bytes):
+                         v = str(v)
+ 
++                    print("DEBUG: Type and content of val before conversion: ", type(val), repr(val))
++
++                    # Ensure field names are unicode
++                    field = field.decode('utf-8') if isinstance(field, bytes) else field
++
++                    print("DEBUG: Type of field before decoding: ", type(field))
++
++                    # Only encode non-bytes values to utf-8
+                     new_fields.append(
+-                        (field.decode('utf-8') if isinstance(field, bytes) else field,
+-                         v.encode('utf-8') if isinstance(v, str) else v))
++                        (field, v.encode('utf-8') if isinstance(v, str) else v))
+ 
+         for (k, v) in files:
+             # support for explicit filename
+@@ -149,6 +156,12 @@ class RequestEncodingMixin(object):
+             else:
+                 fdata = fp.read()
+ 
++            print("DEBUG: Type and content of fdata before RequestField creation: ", type(fdata), repr(fdata))
++
++            # Ensure the filename is unicode
++            fn = fn.decode('utf-8') if isinstance(fn, bytes) else fn
++
++            # Create the RequestField with raw bytes data if it's already bytes
+             rf = RequestField(name=k, data=fdata,
+                               filename=fn, headers=fh)
+             rf.make_multipart(content_type=ft)

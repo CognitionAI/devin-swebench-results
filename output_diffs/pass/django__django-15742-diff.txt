@@ -1,0 +1,16 @@
+diff --git a/django/templatetags/i18n.py b/django/templatetags/i18n.py
+index 3582df1829..c41a2687e7 100644
+--- a/django/templatetags/i18n.py
++++ b/django/templatetags/i18n.py
+@@ -198,7 +198,10 @@ class BlockTranslateNode(Node):
+             with translation.override(None):
+                 result = self.render(context, nested=True)
+         if self.asvar:
+-            context[self.asvar] = result
++            if isinstance(result, SafeData):
++                context[self.asvar] = result
++            else:
++                context[self.asvar] = mark_safe(result)
+             return ""
+         else:
+             return result

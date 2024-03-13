@@ -1,0 +1,35 @@
+diff --git a/sympy/core/numbers.py b/sympy/core/numbers.py
+index c965774780..2035c16e9e 100644
+--- a/sympy/core/numbers.py
++++ b/sympy/core/numbers.py
+@@ -5,6 +5,7 @@
+ import fractions
+ import math
+ import re as regex
++from sympy import Sum
+ 
+ from .containers import Tuple
+ from .sympify import converter, sympify, _sympify, SympifyError, _convert_numpy_types
+@@ -3833,6 +3834,13 @@ def _sage_(self):
+         import sage.all as sage
+         return sage.catalan
+ 
++    def rewrite(self, *args, **kwargs):
++        from sympy.concrete.summations import Sum
++        if args[0] == Sum:
++            k = Symbol('k', integer=True)
++            return Sum((-1)**k / (2*k + 1)**2, (k, 0, Integer('oo')))
++        return self
++
+ 
+ class ImaginaryUnit(with_metaclass(Singleton, AtomicExpr)):
+     r"""The imaginary unit, `i = \sqrt{-1}`.
+@@ -3882,7 +3890,7 @@ def _eval_conjugate(self):
+     def _eval_power(self, expt):
+         """
+         b is I = sqrt(-1)
+-        e is symbolic object but not equal to 0, 1
++        e is symbolic object but not equal to 0 or 1
+ 
+         I**r -> (-1)**(r/2) -> exp(r/2*Pi*I) -> sin(Pi*r/2) + cos(Pi*r/2)*I, r is decimal
+         I**0 mod 4 -> 1

@@ -1,0 +1,22 @@
+diff --git a/sklearn/naive_bayes.py b/sklearn/naive_bayes.py
+index 5427c0002..ae64e70ce 100644
+--- a/sklearn/naive_bayes.py
++++ b/sklearn/naive_bayes.py
+@@ -521,11 +521,13 @@ class BaseDiscreteNB(BaseNB):
+ 
+         if _check_partial_fit_first_call(self, classes):
+             # This is the first call to partial_fit:
+-            # initialize various cumulative counters
++            # initialize various cumulative counters with Laplace smoothing
++            # Laplace smoothing is applied to avoid zero probabilities for classes
++            # not observed in the data. This is done by adding the smoothing
++            # parameter alpha to the count of all classes.
+             n_effective_classes = len(classes) if len(classes) > 1 else 2
+-            self.class_count_ = np.zeros(n_effective_classes, dtype=np.float64)
+-            self.feature_count_ = np.zeros((n_effective_classes, n_features),
+-                                           dtype=np.float64)
++            self.class_count_ = np.zeros(n_effective_classes, dtype=np.float64) + self.alpha
++            self.feature_count_ = np.zeros((n_effective_classes, n_features), dtype=np.float64) + self.alpha
+         elif n_features != self.coef_.shape[1]:
+             msg = "Number of features %d does not match previous data %d."
+             raise ValueError(msg % (n_features, self.coef_.shape[-1]))

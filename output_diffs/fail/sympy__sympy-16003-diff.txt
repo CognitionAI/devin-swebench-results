@@ -1,0 +1,156 @@
+diff --git a/sympy/printing/mathml.py b/sympy/printing/mathml.py
+index 3f8b8d49e0..d2acd3d3c4 100644
+--- a/sympy/printing/mathml.py
++++ b/sympy/printing/mathml.py
+@@ -35,7 +35,7 @@ class MathMLPrinterBase(Printer):
+ 
+     def __init__(self, settings=None):
+         Printer.__init__(self, settings)
+-        from xml.dom.minidom import Document,Text
++        from xml.dom.minidom import Document, Text, Element
+ 
+         self.dom = Document()
+ 
+@@ -59,10 +59,15 @@ def doprint(self, expr):
+         Prints the expression as MathML.
+         """
+         mathML = Printer._print(self, expr)
+-        unistr = mathML.toxml()
+-        xmlbstr = unistr.encode('ascii', 'xmlcharrefreplace')
+-        res = xmlbstr.decode()
+-        return res
++        # Check if mathML is a DOM element before calling toxml
++        if isinstance(mathML, Element):
++            unistr = mathML.toxml()
++            xmlbstr = unistr.encode('ascii', 'xmlcharrefreplace')
++            res = xmlbstr.decode()
++            return res
++        else:
++            # Handle the case where mathML is not a DOM element
++            raise TypeError("mathML must be an XML DOM element, got %s" % type(mathML))
+ 
+     def apply_patch(self):
+         # Applying the patch of xml.dom.minidom bug
+@@ -72,7 +77,7 @@ def apply_patch(self):
+         # Issue: http://bugs.python.org/issue4147
+         # Patch: http://hg.python.org/cpython/rev/7262f8f276ff/
+ 
+-        from xml.dom.minidom import Element, Text, Node, _write_data
++        from xml.dom.minidom import Element, Text, Node
+ 
+         def writexml(self, writer, indent="", addindent="", newl=""):
+             # indent = current indentation
+@@ -86,7 +91,7 @@ def writexml(self, writer, indent="", addindent="", newl=""):
+ 
+             for a_name in a_names:
+                 writer.write(" %s=\"" % a_name)
+-                _write_data(writer, attrs[a_name].value)
++                attrs[a_name].value.writexml(writer, '', '', '')
+                 writer.write("\"")
+             if self.childNodes:
+                 writer.write(">")
+@@ -106,7 +111,7 @@ def writexml(self, writer, indent="", addindent="", newl=""):
+         Element.writexml = writexml
+ 
+         def writexml(self, writer, indent="", addindent="", newl=""):
+-            _write_data(writer, "%s%s%s" % (indent, self.data, newl))
++            self.data.writexml(writer, indent, '', newl)
+         self._Text_writexml_old = Text.writexml
+         Text.writexml = writexml
+ 
+@@ -171,7 +176,11 @@ def _print_Mul(self, expr):
+         if _coeff_isneg(expr):
+             x = self.dom.createElement('apply')
+             x.appendChild(self.dom.createElement('minus'))
+-            x.appendChild(self._print_Mul(-expr))
++            neg_expr = self._print(-expr)
++            if isinstance(neg_expr, Element):
++                x.appendChild(neg_expr)
++            else:
++                raise TypeError("The argument to appendChild must be an XML DOM element, got %s" % type(neg_expr))
+             return x
+ 
+         from sympy.simplify import fraction
+@@ -196,9 +205,17 @@ def _print_Mul(self, expr):
+         x = self.dom.createElement('apply')
+         x.appendChild(self.dom.createElement('times'))
+         if(coeff != 1):
+-            x.appendChild(self._print(coeff))
++            coeff_element = self._print(coeff)
++            if isinstance(coeff_element, Element):
++                x.appendChild(coeff_element)
++            else:
++                raise TypeError("The argument to appendChild must be an XML DOM element, got %s" % type(coeff_element))
+         for term in terms:
+-            x.appendChild(self._print(term))
++            term_element = self._print(term)
++            if isinstance(term_element, Element):
++                x.appendChild(term_element)
++            else:
++                raise TypeError("The argument to appendChild must be an XML DOM element, got %s" % type(term_element))
+         return x
+ 
+     def _print_Add(self, expr, order=None):
+@@ -839,39 +856,32 @@ def _print_Number(self, e):
+         return x
+ 
+     def _print_Derivative(self, e):
++        mfrac = self.dom.createElement('mfrac')
++        mfrac.setAttribute('linethickness', '0')
+         mrow = self.dom.createElement('mrow')
+-        x = self.dom.createElement('mo')
+-        if requires_partial(e):
+-            x.appendChild(self.dom.createTextNode('&#x2202;'))
+-            y = self.dom.createElement('mo')
+-            y.appendChild(self.dom.createTextNode('&#x2202;'))
+-        else:
+-            x.appendChild(self.dom.createTextNode(self.mathml_tag(e)))
+-            y = self.dom.createElement('mo')
+-            y.appendChild(self.dom.createTextNode(self.mathml_tag(e)))
+-
+-        brac = self.dom.createElement('mfenced')
+-        brac.appendChild(self._print(e.expr))
+-        mrow = self.dom.createElement('mrow')
+-        mrow.appendChild(x)
+-        mrow.appendChild(brac)
+-
++        # Create a dictionary to count the occurrences of each variable
++        counts = dict()
+         for sym in e.variables:
+-            frac = self.dom.createElement('mfrac')
+-            m = self.dom.createElement('mrow')
+-            x = self.dom.createElement('mo')
+-            if requires_partial(e):
+-                x.appendChild(self.dom.createTextNode('&#x2202;'))
++            if sym in counts:
++                counts[sym] += 1
++            else:
++                counts[sym] = 1
++        # Create the numerator with derivative variables and their counts
++        for sym, count in counts.items():
++            x = self._print(sym)
++            if count == 1:
++                mrow.appendChild(x)
+             else:
+-                x.appendChild(self.dom.createTextNode(self.mathml_tag(e)))
+-            y = self._print(sym)
+-            m.appendChild(x)
+-            m.appendChild(y)
+-            frac.appendChild(mrow)
+-            frac.appendChild(m)
+-            mrow = frac
+-
+-        return frac
++                msup = self.dom.createElement('msup')
++                msup.appendChild(x)
++                msup.appendChild(self._print(count))
++                mrow.appendChild(msup)
++        mfrac.appendChild(mrow)
++        # Create a new mrow for the function and append to the denominator
++        mrow2 = self.dom.createElement('mrow')
++        mrow2.appendChild(self._print(e.expr))
++        mfrac.appendChild(mrow2)
++        return mfrac
+ 
+     def _print_Function(self, e):
+         mrow = self.dom.createElement('mrow')

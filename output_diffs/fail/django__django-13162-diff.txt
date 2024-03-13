@@ -1,0 +1,56 @@
+diff --git a/django/db/migrations/migration.py b/django/db/migrations/migration.py
+index b9f4f8f88c..cfd093a75f 100644
+--- a/django/db/migrations/migration.py
++++ b/django/db/migrations/migration.py
+@@ -183,16 +183,21 @@ class Migration:
+         are not guaranteed to be unique, but put some effort into the fallback
+         name to avoid VCS conflicts if possible.
+         """
+-        name = None
+-        if len(self.operations) == 1:
+-            name = self.operations[0].migration_name_fragment
+-        elif (
+-            len(self.operations) > 1 and
+-            all(isinstance(o, operations.CreateModel) for o in self.operations)
+-        ):
+-            name = '_'.join(sorted(o.migration_name_fragment for o in self.operations))
+-        if name is None:
+-            name = 'initial' if self.initial else 'auto_%s' % get_migration_name_timestamp()
++        # If this migration replaces two or more migrations, it's a merge migration
++        if len(self.replaces) >= 2:
++            name_fragments = [migration.split("_")[1] for migration in self.replaces]
++            name = 'merge_%s' % '_'.join(sorted(name_fragments))
++        else:
++            name = None
++            if len(self.operations) == 1:
++                name = self.operations[0].migration_name_fragment
++            elif (
++                len(self.operations) > 1 and
++                all(isinstance(o, operations.CreateModel) for o in self.operations)
++            ):
++                name = '_'.join(sorted(o.migration_name_fragment for o in self.operations))
++            if name is None:
++                name = 'initial' if self.initial else 'auto_%s' % get_migration_name_timestamp()
+         return name
+ 
+ 
+@@ -201,11 +206,16 @@ class SwappableTuple(tuple):
+     Subclass of tuple so Django can tell this was originally a swappable
+     dependency when it reads the migration file.
+     """
++    settings_map = {}
+ 
+     def __new__(cls, value, setting):
+-        self = tuple.__new__(cls, value)
+-        self.setting = setting
+-        return self
++        obj = tuple.__new__(cls, value)
++        cls.settings_map[obj] = setting
++        return obj
++
++    @classmethod
++    def get_setting(cls, obj):
++        return cls.settings_map.get(obj, None)
+ 
+ 
+ def swappable_dependency(value):

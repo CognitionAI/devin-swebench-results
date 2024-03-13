@@ -1,0 +1,21 @@
+diff --git a/lib/matplotlib/patches.py b/lib/matplotlib/patches.py
+index e062249589..8e4f0e803e 100644
+--- a/lib/matplotlib/patches.py
++++ b/lib/matplotlib/patches.py
+@@ -425,9 +425,14 @@ class Patch(artist.Artist):
+         if ls in [' ', '', 'none']:
+             ls = 'None'
+         self._linestyle = ls
+-        self._unscaled_dash_pattern = mlines._get_dash_pattern(ls)
++        # Check if linestyle is a dash tuple and handle accordingly
++        if isinstance(ls, tuple) and len(ls) == 2 and isinstance(ls[1], tuple):
++            offset, onoffseq = ls
++            self._unscaled_dash_pattern = (offset, onoffseq)
++        else:
++            self._unscaled_dash_pattern = mlines._get_dash_pattern(ls)
+         self._dash_pattern = mlines._scale_dashes(
+-            *self._unscaled_dash_pattern, self._linewidth)
++            self._unscaled_dash_pattern[0], self._unscaled_dash_pattern[1], self._linewidth)
+         self.stale = True
+ 
+     def set_fill(self, b):

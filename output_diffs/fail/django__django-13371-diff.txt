@@ -1,0 +1,15 @@
+diff --git a/django/db/models/query.py b/django/db/models/query.py
+index 67ffe7f000..f5a5381e21 100644
+--- a/django/db/models/query.py
++++ b/django/db/models/query.py
+@@ -149,10 +149,7 @@ class NamedValuesListIterable(ValuesListIterable):
+     """
+ 
+     @staticmethod
+-    @lru_cache()
+     def create_namedtuple_class(*names):
+-        # Cache namedtuple() with @lru_cache() since it's too slow to be
+-        # called for every QuerySet evaluation.
+         return namedtuple('Row', names)
+ 
+     def __iter__(self):

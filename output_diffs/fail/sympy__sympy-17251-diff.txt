@@ -1,0 +1,30 @@
+diff --git a/sympy/functions/elementary/exponential.py b/sympy/functions/elementary/exponential.py
+index 047e2d52ea..3ab6e96e15 100644
+--- a/sympy/functions/elementary/exponential.py
++++ b/sympy/functions/elementary/exponential.py
+@@ -307,6 +307,25 @@ def eval(cls, arg):
+         elif isinstance(arg, MatrixBase):
+             return arg.exp()
+ 
++        if arg.is_imaginary:
++            # Reduce the argument modulo 2*pi*I
++            coeff = (arg / (2*S.Pi*S.ImaginaryUnit)).simplify()
++            if ask(Q.integer(coeff)):
++                arg = (coeff % 2) * 2 * S.Pi * S.ImaginaryUnit
++
++        if arg.is_Mul:
++            coeff = arg.as_coefficient(S.Pi*S.ImaginaryUnit)
++            if coeff:
++                if ask(Q.integer(2*coeff)):
++                    if ask(Q.even(coeff)):
++                        return S.One
++                    elif ask(Q.odd(coeff)):
++                        return S.NegativeOne
++                    elif ask(Q.even(coeff + S.Half)):
++                        return -S.ImaginaryUnit
++                    elif ask(Q.odd(coeff + S.Half)):
++                        return S.ImaginaryUnit
++
+     @property
+     def base(self):
+         """

@@ -1,0 +1,104 @@
+diff --git a/sphinx/util/typing.py b/sphinx/util/typing.py
+index e1972d86d..a4563e694 100644
+--- a/sphinx/util/typing.py
++++ b/sphinx/util/typing.py
+@@ -299,7 +299,7 @@ def _restify_py36(cls: Optional[Type]) -> str:
+             return ':py:obj:`%s.%s`' % (cls.__module__, qualname)
+ 
+ 
+-def stringify(annotation: Any) -> str:
++def stringify(annotation: Any, add_module_names: bool = True) -> str:
+     """Stringify type annotation object."""
+     from sphinx.util import inspect  # lazy loading
+ 
+@@ -310,14 +310,17 @@ def stringify(annotation: Any) -> str:
+         else:
+             return annotation
+     elif isinstance(annotation, TypeVar):
+-        if annotation.__module__ == 'typing':
++        if annotation.__module__ == 'typing' or not add_module_names:
+             return annotation.__name__
+         else:
+             return '.'.join([annotation.__module__, annotation.__name__])
+     elif inspect.isNewType(annotation):
+         if sys.version_info > (3, 10):
+             # newtypes have correct module info since Python 3.10+
+-            return '%s.%s' % (annotation.__module__, annotation.__name__)
++            if not add_module_names:
++                return annotation.__name__
++            else:
++                return '%s.%s' % (annotation.__module__, annotation.__name__)
+         else:
+             return annotation.__name__
+     elif not annotation:
+@@ -333,17 +336,19 @@ def stringify(annotation: Any) -> str:
+         if hasattr(annotation, '__args__'):  # PEP 585 generic
+             return repr(annotation)
+         else:
+-            return annotation.__qualname__
++            if not add_module_names:
++                return annotation.__qualname__
++            else:
++                return '%s.%s' % (annotation.__module__, annotation.__qualname__)
+     elif annotation is Ellipsis:
+         return '...'
+-
+     if sys.version_info >= (3, 7):  # py37+
+-        return _stringify_py37(annotation)
++        return _stringify_py37(annotation, add_module_names)
+     else:
+-        return _stringify_py36(annotation)
++        return _stringify_py36(annotation, add_module_names)
+ 
+ 
+-def _stringify_py37(annotation: Any) -> str:
++def _stringify_py37(annotation: Any, add_module_names: bool = True) -> str:
+     """stringify() for py37+."""
+     module = getattr(annotation, '__module__', None)
+     if module == 'typing':
+@@ -356,7 +361,10 @@ def _stringify_py37(annotation: Any) -> str:
+         else:
+             qualname = stringify(annotation.__origin__)  # ex. Union
+     elif hasattr(annotation, '__qualname__'):
+-        qualname = '%s.%s' % (module, annotation.__qualname__)
++        if annotation.__module__ == 'typing' or not add_module_names:
++            return annotation.__qualname__
++        else:
++            return '%s.%s' % (module, annotation.__qualname__)
+     elif hasattr(annotation, '__origin__'):
+         # instantiated generic provided by a user
+         qualname = stringify(annotation.__origin__)
+@@ -406,7 +414,7 @@ def _stringify_py37(annotation: Any) -> str:
+     return qualname
+ 
+ 
+-def _stringify_py36(annotation: Any) -> str:
++def _stringify_py36(annotation: Any, add_module_names: bool = True) -> str:
+     """stringify() for py36."""
+     module = getattr(annotation, '__module__', None)
+     if module == 'typing':
+@@ -421,7 +429,10 @@ def _stringify_py36(annotation: Any) -> str:
+         else:
+             qualname = repr(annotation).replace('typing.', '')
+     elif hasattr(annotation, '__qualname__'):
+-        qualname = '%s.%s' % (module, annotation.__qualname__)
++        if annotation.__module__ == 'typing' or not add_module_names:
++            return annotation.__qualname__
++        else:
++            return '%s.%s' % (module, annotation.__qualname__)
+     else:
+         qualname = repr(annotation)
+ 
+diff --git a/tox.ini b/tox.ini
+index e703cd646..c6fcbc20a 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -28,7 +28,7 @@ setenv =
+     PYTHONWARNINGS = all,ignore::ImportWarning:importlib._bootstrap_external,ignore::DeprecationWarning:site,ignore::DeprecationWarning:distutils,ignore::DeprecationWarning:pip._vendor.packaging.version
+     PYTEST_ADDOPTS = {env:PYTEST_ADDOPTS:} --color yes
+ commands=
+-    python -X dev -m pytest --durations 25 {posargs}
++    python -X dev -m pytest -rA --durations 25 {posargs}
+ 
+ [testenv:du-latest]
+ commands =

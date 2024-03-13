@@ -1,0 +1,38 @@
+diff --git a/sympy/solvers/diophantine.py b/sympy/solvers/diophantine.py
+index 6092e35dab..85b925084e 100644
+--- a/sympy/solvers/diophantine.py
++++ b/sympy/solvers/diophantine.py
+@@ -348,6 +348,15 @@ def diophantine(eq, param=symbols("t", integer=True), syms=None,
+                 final_soln.add(sol)
+         else:
+                 final_soln.add(sol)
++    if syms:
++        if not is_sequence(syms):
++            raise TypeError(
++                'syms should be given as a sequence, e.g. a list')
++        syms = [i for i in syms if i in var]
++        if syms != var:
++            dict_sym_index = dict(zip(syms, range(len(syms))))
++            final_soln = {tuple([t[dict_sym_index[i]] for i in var])
++                            for t in final_soln}
+     return final_soln
+ 
+ 
+@@ -413,7 +422,7 @@ def diop_solve(eq, param=symbols("t", integer=True)):
+     >>> from sympy.solvers.diophantine import diop_solve
+     >>> from sympy.abc import x, y, z, w
+     >>> diop_solve(2*x + 3*y - 5)
+-    (3*t_0 - 5, 5 - 2*t_0)
++    (3*t_0 - 5, 2*t_0 - 5)
+     >>> diop_solve(4*x + 3*y - 4*z + 5)
+     (t_0, 8*t_0 + 4*t_1 + 5, 7*t_0 + 3*t_1 + 5)
+     >>> diop_solve(x + 3*y - 4*z + w - 6)
+@@ -3023,7 +3032,7 @@ def sum_of_three_squares(n):
+     ==========
+ 
+     .. [1] Representing a number as a sum of three squares, [online],
+-        Available: http://schorn.ch/lagrange.html
++        Available: http://www.proofwiki.org/wiki/Integer_as_Sum_of_Three_Squares
+ 
+     See Also
+     ========

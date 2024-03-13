@@ -1,0 +1,90 @@
+diff --git a/lib/matplotlib/_constrained_layout.py b/lib/matplotlib/_constrained_layout.py
+index 9966033006..2225cfd767 100644
+--- a/lib/matplotlib/_constrained_layout.py
++++ b/lib/matplotlib/_constrained_layout.py
+@@ -344,6 +344,12 @@ def make_layout_margins(layoutgrids, fig, renderer, *, w_pad=0, h_pad=0,
+ 
+     Then make room for colorbars.
+     """
++    # Set default values for hspace and wspace if None
++    if hspace is None:
++        hspace = 0
++    if wspace is None:
++        wspace = 0
++
+     for sfig in fig.subfigs:  # recursively make child panel margins
+         ss = sfig._subplotspec
+         make_layout_margins(layoutgrids, sfig, renderer,
+@@ -457,6 +463,16 @@ def make_margin_suptitles(layoutgrids, fig, renderer, *, w_pad=0, h_pad=0):
+             bbox = inv_trans_fig(fig._supylabel.get_tightbbox(renderer))
+             layoutgrids[fig].edit_margin_min('left', bbox.width + 2 * w_pad)
+ 
++    # Handle figure legends:
++    for legend in fig.legends:
++        if legend.get_in_layout():
++            bbox = legend.get_window_extent(renderer)
++            bbox = bbox.transformed(fig.transFigure.inverted())
++            layoutgrids[fig].edit_margin_min('right', bbox.width)
++            layoutgrids[fig].edit_margin_min('top', bbox.height)
++
++    reset_margins(layoutgrids, fig)
++
+ 
+ def match_submerged_margins(layoutgrids, fig):
+     """
+@@ -570,8 +586,8 @@ def get_cb_parent_spans(cbax):
+         colstart = min(ss.colspan.start, colstart)
+         colstop = max(ss.colspan.stop, colstop)
+ 
+-    rowspan = range(rowstart, rowstop)
+-    colspan = range(colstart, colstop)
++    rowspan = range(int(rowstart), int(rowstop))
++    colspan = range(int(colstart), int(colstop))
+     return rowspan, colspan
+ 
+ 
+@@ -608,6 +624,12 @@ def reposition_axes(layoutgrids, fig, renderer, *,
+     """
+     Reposition all the axes based on the new inner bounding box.
+     """
++    # Set default values for hspace and wspace if None
++    if hspace is None:
++        hspace = 0
++    if wspace is None:
++        wspace = 0
++
+     trans_fig_to_subfig = fig.transFigure - fig.transSubfigure
+     for sfig in fig.subfigs:
+         bbox = layoutgrids[sfig].get_outer_bbox()
+@@ -665,6 +687,9 @@ def reposition_colorbar(layoutgrids, cbax, renderer, *, offset=None):
+         account for multiple colorbars
+     """
+ 
++    if offset is None:
++        offset = {'left': 0, 'right': 0, 'bottom': 0, 'top': 0}
++
+     parents = cbax._colorbar_info['parents']
+     gs = parents[0].get_gridspec()
+     fig = cbax.figure
+@@ -747,16 +772,16 @@ def reset_margins(layoutgrids, fig):
+     layoutgrids[fig].reset_margins()
+ 
+ 
+-def colorbar_get_pad(layoutgrids, cax):
+-    parents = cax._colorbar_info['parents']
++def colorbar_get_pad(layoutgrids, cbax):
++    parents = cbax._colorbar_info['parents']
+     gs = parents[0].get_gridspec()
+ 
+-    cb_rspans, cb_cspans = get_cb_parent_spans(cax)
++    cb_rspans, cb_cspans = get_cb_parent_spans(cbax)
+     bboxouter = layoutgrids[gs].get_inner_bbox(rows=cb_rspans, cols=cb_cspans)
+ 
+-    if cax._colorbar_info['location'] in ['right', 'left']:
++    if cbax._colorbar_info['location'] in ['right', 'left']:
+         size = bboxouter.width
+     else:
+         size = bboxouter.height
+ 
+-    return cax._colorbar_info['pad'] * size
++    return cbax._colorbar_info['pad'] * size

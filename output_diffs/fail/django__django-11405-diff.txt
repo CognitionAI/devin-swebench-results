@@ -1,0 +1,73 @@
+diff --git a/django/db/models/expressions.py b/django/db/models/expressions.py
+index 16df317631..a8fef9af36 100644
+--- a/django/db/models/expressions.py
++++ b/django/db/models/expressions.py
+@@ -1122,11 +1122,7 @@ class OrderBy(BaseExpression):
+         return cols
+ 
+     def reverse_ordering(self):
+-        self.descending = not self.descending
+-        if self.nulls_first or self.nulls_last:
+-            self.nulls_first = not self.nulls_first
+-            self.nulls_last = not self.nulls_last
+-        return self
++        return OrderBy(self.expression, descending=not self.descending, nulls_first=self.nulls_first, nulls_last=self.nulls_last)
+ 
+     def asc(self):
+         self.descending = False
+diff --git a/django/db/models/sql/compiler.py b/django/db/models/sql/compiler.py
+index aea3ec8d5e..7e15c9e8b2 100644
+--- a/django/db/models/sql/compiler.py
++++ b/django/db/models/sql/compiler.py
+@@ -259,6 +259,7 @@ class SQLCompiler:
+         can add aliases to clauses that do not yet have one, or it can
+         add totally new select clauses).
+         """
++        print("Initial ordering:", self.query.order_by)
+         if self.query.extra_order_by:
+             ordering = self.query.extra_order_by
+         elif not self.query.default_ordering:
+@@ -275,13 +276,17 @@ class SQLCompiler:
+         else:
+             asc, desc = ORDER_DIR['DESC']
+ 
++        print("DEBUG: ordering variable after initial set:", ordering)
++
+         order_by = []
+         for field in ordering:
+             if hasattr(field, 'resolve_expression'):
++                # Ensure field is an instance of OrderBy, if not, wrap it
+                 if not isinstance(field, OrderBy):
+-                    field = field.asc()
++                    field = OrderBy(field)
++                # Check if standard_ordering is set to reverse the order
+                 if not self.query.standard_ordering:
+-                    field.reverse_ordering()
++                    field = field.reverse_ordering()
+                 order_by.append((field, False))
+                 continue
+             if field == '?':  # random
+@@ -329,6 +334,8 @@ class SQLCompiler:
+                     order_by.append((
+                         OrderBy(Ref(col, RawSQL(*self.query.extra[col])), descending=descending),
+                         True))
++            print("DEBUG: order_by list after processing field:", field, "Resulting order_by:", order_by)
++        print("DEBUG: Final state of order_by list before return:", order_by)
+         result = []
+         seen = set()
+ 
+diff --git a/tests/ordering/tests.py b/tests/ordering/tests.py
+index f0c4bba999..924443ce5d 100644
+--- a/tests/ordering/tests.py
++++ b/tests/ordering/tests.py
+@@ -94,6 +94,10 @@ class OrderingTests(TestCase):
+             Article.objects.order_by(F("author").desc(nulls_last=True, nulls_first=True))
+ 
+     def assertQuerysetEqualReversible(self, queryset, sequence):
++        print("Queryset:", list(queryset))
++        print("Reversed Queryset:", list(queryset.reverse()))
++        print("Expected Sequence:", sequence)
++        print("Reversed Expected Sequence:", list(reversed(sequence)))
+         self.assertSequenceEqual(queryset, sequence)
+         self.assertSequenceEqual(queryset.reverse(), list(reversed(sequence)))
+ 

@@ -1,0 +1,15 @@
+diff --git a/lib/matplotlib/lines.py b/lib/matplotlib/lines.py
+index f1efd125a4..378517f278 100644
+--- a/lib/matplotlib/lines.py
++++ b/lib/matplotlib/lines.py
+@@ -402,8 +402,8 @@ class Line2D(Artist):
+                 not isinstance(self._picker, bool)):
+             self.pickradius = self._picker
+ 
+-        self._xorig = np.asarray([])
+-        self._yorig = np.asarray([])
++        self._xorig = np.array(xdata, copy=True)
++        self._yorig = np.array(ydata, copy=True)
+         self._invalidx = True
+         self._invalidy = True
+         self._x = None

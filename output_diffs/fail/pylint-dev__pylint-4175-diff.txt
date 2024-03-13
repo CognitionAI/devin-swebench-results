@@ -1,0 +1,116 @@
+diff --git a/pylint/checkers/similar.py b/pylint/checkers/similar.py
+index 5bf55ee78..3dc8f101d 100644
+--- a/pylint/checkers/similar.py
++++ b/pylint/checkers/similar.py
+@@ -571,9 +571,13 @@ def stripped_lines(
+     :param ignore_signatures: if true, any line that is part of a function signature is removed from the result
+     :return: the collection of line/line number/line type tuples
+     """
++    tree = None
+     if ignore_imports or ignore_signatures:
+         tree = astroid.parse("".join(lines))
+-    if ignore_imports:
++    line_begins_import = {}
++    current_line_is_import = False
++    signature_lines = set()
++    if ignore_imports and tree is not None:
+         node_is_import_by_lineno = (
+             (node.lineno, isinstance(node, (astroid.Import, astroid.ImportFrom)))
+             for node in tree.body
+@@ -585,7 +589,7 @@ def stripped_lines(
+             )
+         }
+         current_line_is_import = False
+-    if ignore_signatures:
++    if ignore_signatures and tree is not None:
+         functions = [
+             n
+             for n in tree.body
+@@ -619,7 +623,7 @@ def stripped_lines(
+                 if line.endswith(docstring):
+                     docstring = None
+                 line = ""
+-        if ignore_imports:
++        if ignore_imports and tree is not None:
+             current_line_is_import = line_begins_import.get(
+                 lineno, current_line_is_import
+             )
+@@ -627,7 +631,7 @@ def stripped_lines(
+                 line = ""
+         if ignore_comments:
+             line = line.split("#", 1)[0].strip()
+-        if ignore_signatures and lineno in signature_lines:
++        if ignore_signatures and tree is not None and lineno in signature_lines:
+             line = ""
+         if line:
+             strippedlines.append(
+@@ -804,9 +808,12 @@ class SimilarChecker(BaseChecker, Similar, MapReduceMixin):
+     def open(self):
+         """init the checkers: reset linesets and statistics information"""
+         self.linesets = []
+-        self.stats = self.linter.add_stats(
+-            nb_duplicated_lines=0, percent_duplicated_lines=0
+-        )
++        if self.linter is not None:
++            self.stats = self.linter.add_stats(
++                nb_duplicated_lines=0, percent_duplicated_lines=0
++            )
++        else:
++            self.stats = {'nb_duplicated_lines': 0, 'percent_duplicated_lines': 0}
+ 
+     def process_module(self, node):
+         """process a module
+@@ -816,7 +823,8 @@ class SimilarChecker(BaseChecker, Similar, MapReduceMixin):
+         stream must implement the readlines method
+         """
+         with node.stream() as stream:
+-            self.append_stream(self.linter.current_name, stream, node.file_encoding)
++            if self.linter is not None:
++                self.append_stream(self.linter.current_name, stream, node.file_encoding)
+ 
+     def close(self):
+         """compute and display similarities on closing (i.e. end of parsing)"""
+@@ -836,26 +844,17 @@ class SimilarChecker(BaseChecker, Similar, MapReduceMixin):
+ 
+             self.add_message("R0801", args=(len(couples), "\n".join(msg)))
+             duplicated += num * (len(couples) - 1)
+-        stats["nb_duplicated_lines"] = duplicated
+-        stats["percent_duplicated_lines"] = total and duplicated * 100.0 / total
++        if self.stats is not None:
++            self.stats["nb_duplicated_lines"] = duplicated
++            self.stats["percent_duplicated_lines"] = int(duplicated * 100.0 / total) if total != 0 else 0
+ 
+     def get_map_data(self):
+-        """Passthru override"""
+-        return Similar.get_map_data(self)
+-
+-    def reduce_map_data(self, linter, data):
+-        """Reduces and recombines data into a format that we can report on
++        """override to get data from the Similar class"""
++        return self.linesets
+ 
+-        The partner function of get_map_data()"""
+-        recombined = SimilarChecker(linter)
+-        recombined.min_lines = self.min_lines
+-        recombined.ignore_comments = self.ignore_comments
+-        recombined.ignore_docstrings = self.ignore_docstrings
+-        recombined.ignore_imports = self.ignore_imports
+-        recombined.ignore_signatures = self.ignore_signatures
+-        recombined.open()
+-        Similar.combine_mapreduce_data(recombined, linesets_collection=data)
+-        recombined.close()
++    def reduce_map_data(self, data):
++        """override to reduce data by the Similar class"""
++        self.combine_mapreduce_data(data)
+ 
+ 
+ def register(linter):
+@@ -893,7 +892,7 @@ def Run(argv=None):
+     ignore_docstrings = False
+     ignore_imports = False
+     ignore_signatures = False
+-    opts, args = getopt(argv, s_opts, l_opts)
++    opts, args = getopt(argv, s_opts, list(l_opts))
+     for opt, val in opts:
+         if opt in ("-d", "--duplicates"):
+             min_lines = int(val)

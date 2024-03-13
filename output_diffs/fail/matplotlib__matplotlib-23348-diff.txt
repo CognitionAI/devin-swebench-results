@@ -1,0 +1,68 @@
+diff --git a/lib/matplotlib/widgets.py b/lib/matplotlib/widgets.py
+index c5b6ec2009..07f1d17939 100644
+--- a/lib/matplotlib/widgets.py
++++ b/lib/matplotlib/widgets.py
+@@ -1710,6 +1710,10 @@ class MultiCursor(Widget):
+ 
+     def __init__(self, canvas, axes, useblit=True, horizOn=False, vertOn=True,
+                  **lineprops):
++        # Check if all axes belong to the same figure
++        if not all(ax.figure == axes[0].figure for ax in axes):
++            raise ValueError("All axes must belong to the same figure.")
++
+         self.canvas = canvas
+         self.axes = axes
+         self.horizOn = horizOn
+@@ -1743,10 +1747,17 @@ class MultiCursor(Widget):
+         self.connect()
+ 
+     def connect(self):
+-        """Connect events."""
+-        self._cidmotion = self.canvas.mpl_connect('motion_notify_event',
+-                                                  self.onmove)
+-        self._ciddraw = self.canvas.mpl_connect('draw_event', self.clear)
++        """Connect events to all figures."""
++        self._cids = []
++        for fig in self.figures:
++            self._cids.append(fig.canvas.mpl_connect('motion_notify_event', self.onmove))
++            self._cids.append(fig.canvas.mpl_connect('draw_event', self.clear))
++
++    def disconnect(self):
++        """Disconnect events."""
++        for cid in self._cids:
++            for fig in self.figures:
++                fig.canvas.mpl_disconnect(cid)
+ 
+     def disconnect(self):
+         """Disconnect events."""
+@@ -1802,7 +1813,9 @@ class _SelectorWidget(AxesWidget):
+ 
+     def __init__(self, ax, onselect, useblit=False, button=None,
+                  state_modifier_keys=None, use_data_coordinates=False):
+-        super().__init__(ax)
++        super().__init__(ax, onselect, useblit=useblit, button=button,
++                         state_modifier_keys=state_modifier_keys,
++                         use_data_coordinates=use_data_coordinates)
+ 
+         self._visible = True
+         self.onselect = onselect
+@@ -2187,6 +2200,8 @@ class SpanSelector(_SelectorWidget):
+ 
+             def on_select(min: float, max: float) -> Any
+ 
++        where *min* and *max* are the selected range.
++
+     direction : {"horizontal", "vertical"}
+         The direction along which to draw the span selector.
+ 
+@@ -2222,7 +2237,9 @@ class SpanSelector(_SelectorWidget):
+     handle_props : dict, default: None
+         Properties of the handle lines at the edges of the span. Only used
+         when *interactive* is True. See `matplotlib.lines.Line2D` for valid
+-        properties.
++        properties.  Default values are defined in ``mpl.rcParams`` except for
++        the default value of ``markeredgecolor`` which will be the same as the
++        ``edgecolor`` property in *props*.
+ 
+     grab_range : float, default: 10
+         Distance in pixels within which the interactive tool handles can be

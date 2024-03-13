@@ -1,0 +1,42 @@
+diff --git a/sympy/physics/vector/point.py b/sympy/physics/vector/point.py
+index e49a978839..17476518d8 100644
+--- a/sympy/physics/vector/point.py
++++ b/sympy/physics/vector/point.py
+@@ -1,6 +1,7 @@
+ from __future__ import print_function, division
+ from .vector import Vector, _check_vector
+ from .frame import _check_frame
++import warnings
+ 
+ __all__ = ['Point']
+ 
+@@ -336,6 +337,17 @@ def set_acc(self, frame, value):
+         _check_frame(frame)
+         self._acc_dict.update({frame: value})
+ 
++    def _check_for_cycle(self, starting_point, current_point, visited):
++        """Recursively checks for a cycle in the position tree."""
++        if current_point in visited:
++            return True
++        visited.add(current_point)
++        for next_point in current_point._pos_dict:
++            if next_point == starting_point or self._check_for_cycle(starting_point, next_point, visited):
++                return True
++        visited.remove(current_point)
++        return False
++
+     def set_pos(self, otherpoint, value):
+         """Used to set the position of this point w.r.t. another point.
+ 
+@@ -364,6 +376,11 @@ def set_pos(self, otherpoint, value):
+             value = Vector(0)
+         value = _check_vector(value)
+         self._check_point(otherpoint)
++
++        # Cycle detection logic
++        if self._check_for_cycle(self, otherpoint, set()):
++            warnings.warn(f"Setting the position of point {self.name} relative to {otherpoint.name} creates a cycle.", UserWarning)
++
+         self._pos_dict.update({otherpoint: value})
+         otherpoint._pos_dict.update({self: -value})
+ 

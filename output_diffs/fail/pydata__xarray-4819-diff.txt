@@ -1,0 +1,671 @@
+diff --git a/xarray/core/dataset.py b/xarray/core/dataset.py
+index 7edc2fab..540caa24 100644
+--- a/xarray/core/dataset.py
++++ b/xarray/core/dataset.py
+@@ -665,7 +665,7 @@ class Dataset(Mapping, ImplementsDatasetReduce, DataWithCoords):
+         coords: Mapping[Hashable, Any] = None,
+         attrs: Mapping[Hashable, Any] = None,
+     ):
+-        # TODO(shoyer): expose indexes as a public argument in __init__
++        # TODO: expose indexes as a public argument in __init__
+ 
+         if data_vars is None:
+             data_vars = {}
+@@ -790,10 +790,10 @@ class Dataset(Mapping, ImplementsDatasetReduce, DataWithCoords):
+             k: v._data for k, v in self.variables.items() if is_duck_dask_array(v._data)
+         }
+         if lazy_data:
+-            import dask.array as da
++            import dask
+ 
+             # evaluate all the dask arrays simultaneously
+-            evaluated_data = da.compute(*lazy_data.values(), **kwargs)
++            evaluated_data = dask.compute(*lazy_data.values(), **kwargs)
+ 
+             for k, data in zip(lazy_data, evaluated_data):
+                 self.variables[k].data = data
+@@ -1127,210 +1127,475 @@ class Dataset(Mapping, ImplementsDatasetReduce, DataWithCoords):
+             obj = obj.rename(dim_names)
+         return obj
+ 
+-    def copy(self, deep: bool = False, data: Mapping = None) -> "Dataset":
+-        """Returns a copy of this dataset.
++    @property
++    def _attr_sources(self) -> Iterable[Mapping[Hashable, Any]]:
++        """Places to look-up items for attribute-style access"""
++        yield from self._item_sources
++        yield self.attrs
+ 
+-        If `deep=True`, a deep copy is made of each of the component variables.
+-        Otherwise, a shallow copy of each of the component variable is made, so
+-        that the underlying memory region of the new dataset is the same as in
+-        the original dataset.
++    @property
++    def _item_sources(self) -> Iterable[Mapping[Hashable, Any]]:
++        """Places to look-up items for key-completion"""
++        yield self.data_vars
++        yield HybridMappingProxy(keys=self._coord_names, mapping=self.coords)
+ 
+-        Use `data` to create a new object with the same structure as
+-        original but entirely new data.
++        # virtual coordinates
++        yield HybridMappingProxy(keys=self.dims, mapping=self)
+ 
+-        Parameters
+-        ----------
+-        deep : bool, optional
+-            Whether each component variable is loaded into memory and copied onto
+-            the new object. Default is False.
+-        data : dict-like, optional
+-            Data to use in the new object. Each item in `data` must have same
+-            shape as corresponding data variable in original. When `data` is
+-            used, `deep` is ignored for the data variables and only used for
+-            coords.
++        # uses empty dict -- everything here can already be found in self.coords.
++        yield HybridMappingProxy(keys=self._level_coords, mapping={})
+ 
+-        Returns
+-        -------
+-        object : Dataset
+-            New object with dimensions, attributes, coordinates, name, encoding,
+-            and optionally data copied from original.
++    def __contains__(self, key: object) -> bool:
++        """The 'in' operator will return true or false depending on whether
++        'key' is an array in the dataset or not.
++        """
++        return key in self._variables
+ 
+-        Examples
+-        --------
++    def __len__(self) -> int:
++        return len(self.data_vars)
+ 
+-        Shallow copy versus deep copy
++    def __bool__(self) -> bool:
++        return bool(self.data_vars)
+ 
+-        >>> da = xr.DataArray(np.random.randn(2, 3))
+-        >>> ds = xr.Dataset(
+-        ...     {"foo": da, "bar": ("x", [-1, 2])},
+-        ...     coords={"x": ["one", "two"]},
+-        ... )
+-        >>> ds.copy()
+-        <xarray.Dataset>
+-        Dimensions:  (dim_0: 2, dim_1: 3, x: 2)
+-        Coordinates:
+-          * x        (x) <U3 'one' 'two'
+-        Dimensions without coordinates: dim_0, dim_1
+-        Data variables:
+-            foo      (dim_0, dim_1) float64 1.764 0.4002 0.9787 2.241 1.868 -0.9773
+-            bar      (x) int64 -1 2
++    def __iter__(self) -> Iterator[Hashable]:
++        return iter(self.data_vars)
+ 
+-        >>> ds_0 = ds.copy(deep=False)
+-        >>> ds_0["foo"][0, 0] = 7
+-        >>> ds_0
+-        <xarray.Dataset>
+-        Dimensions:  (dim_0: 2, dim_1: 3, x: 2)
+-        Coordinates:
+-          * x        (x) <U3 'one' 'two'
+-        Dimensions without coordinates: dim_0, dim_1
+-        Data variables:
+-            foo      (dim_0, dim_1) float64 7.0 0.4002 0.9787 2.241 1.868 -0.9773
+-            bar      (x) int64 -1 2
++    def __array__(self, dtype=None):
++        raise TypeError(
++            "cannot directly convert an xarray.Dataset into a "
++            "numpy array. Instead, create an xarray.DataArray "
++            "first, either with indexing on the Dataset or by "
++            "invoking the `to_array()` method."
++        )
+ 
+-        >>> ds
+-        <xarray.Dataset>
+-        Dimensions:  (dim_0: 2, dim_1: 3, x: 2)
+-        Coordinates:
+-          * x        (x) <U3 'one' 'two'
+-        Dimensions without coordinates: dim_0, dim_1
+-        Data variables:
+-            foo      (dim_0, dim_1) float64 7.0 0.4002 0.9787 2.241 1.868 -0.9773
+-            bar      (x) int64 -1 2
++    @property
++    def nbytes(self) -> int:
++        return sum(v.nbytes for v in self.variables.values())
+ 
+-        Changing the data using the ``data`` argument maintains the
+-        structure of the original object, but with the new data. Original
+-        object is unaffected.
++    @property
++    def loc(self) -> _LocIndexer:
++        """Attribute for location based indexing. Only supports __getitem__,
++        and only when the key is a dict of the form {dim: labels}.
++        """
++        return _LocIndexer(self)
+ 
+-        >>> ds.copy(data={"foo": np.arange(6).reshape(2, 3), "bar": ["a", "b"]})
+-        <xarray.Dataset>
+-        Dimensions:  (dim_0: 2, dim_1: 3, x: 2)
+-        Coordinates:
+-          * x        (x) <U3 'one' 'two'
+-        Dimensions without coordinates: dim_0, dim_1
+-        Data variables:
+-            foo      (dim_0, dim_1) int64 0 1 2 3 4 5
+-            bar      (x) <U1 'a' 'b'
++    # FIXME https://github.com/python/mypy/issues/7328
++    @overload
++    def __getitem__(self, key: Mapping) -> "Dataset":  # type: ignore
++        ...
+ 
+-        >>> ds
+-        <xarray.Dataset>
+-        Dimensions:  (dim_0: 2, dim_1: 3, x: 2)
+-        Coordinates:
+-          * x        (x) <U3 'one' 'two'
+-        Dimensions without coordinates: dim_0, dim_1
+-        Data variables:
+-            foo      (dim_0, dim_1) float64 7.0 0.4002 0.9787 2.241 1.868 -0.9773
+-            bar      (x) int64 -1 2
++    @overload
++    def __getitem__(self, key: Hashable) -> "DataArray":  # type: ignore
++        ...
++
++    @overload
++    def __getitem__(self, key: Any) -> "Dataset":
++        ...
++
++    def __getitem__(self, key):
++        """Access variables or coordinates this dataset as a
++        :py:class:`~xarray.DataArray`.
++
++        Indexing with a list of names will return a new ``Dataset`` object.
++        """
++        if utils.is_dict_like(key):
++            return self.isel(**cast(Mapping, key))
++
++        if hashable(key):
++            return self._construct_dataarray(key)
++        else:
++            return self._copy_listed(np.asarray(key))
++
++    def __setitem__(self, key: Hashable, value) -> None:
++        """Add an array to this dataset.
++
++        If value is a `DataArray`, call its `select_vars()` method, rename it
++        to `key` and merge the contents of the resulting dataset into this
++        dataset.
++
++        If value is an `Variable` object (or tuple of form
++        ``(dims, data[, attrs])``), add it to this dataset as a new
++        variable.
++        """
++        if utils.is_dict_like(key):
++            raise NotImplementedError(
++                "cannot yet use a dictionary as a key to set Dataset values"
++            )
++
++        self.update({key: value})
++
++    def __delitem__(self, key: Hashable) -> None:
++        """Remove a variable from this dataset."""
++        del self._variables[key]
++        self._coord_names.discard(key)
++        if key in self.indexes:
++            assert self._indexes is not None
++            del self._indexes[key]
++        self._dims = calculate_dimensions(self._variables)
++
++    # mutable objects should not be hashable
++    # https://github.com/python/mypy/issues/4266
++    __hash__ = None  # type: ignore
++
++    def _all_compat(self, other: "Dataset", compat_str: str) -> bool:
++        """Helper function for equals and identical"""
++
++        # some stores (e.g., scipy) do not seem to preserve order, so don't
++        # require matching order for equality
++        def compat(x: Variable, y: Variable) -> bool:
++            return getattr(x, compat_str)(y)
++
++        return self._coord_names == other._coord_names and utils.dict_equiv(
++            self._variables, other._variables, compat=compat
++        )
++
++    def broadcast_equals(self, other: "Dataset") -> bool:
++        """Two Datasets are broadcast equal if they are equal after
++        broadcasting all variables against each other.
++
++        For example, variables that are scalar in one dataset but non-scalar in
++        the other dataset can still be broadcast equal if the the non-scalar
++        variable is a constant.
+ 
+         See Also
+         --------
+-        pandas.DataFrame.copy
++        Dataset.equals
++        Dataset.identical
+         """
+-        if data is None:
+-            variables = {k: v.copy(deep=deep) for k, v in self._variables.items()}
+-        elif not utils.is_dict_like(data):
+-            raise ValueError("Data must be dict-like")
+-        else:
+-            var_keys = set(self.data_vars.keys())
+-            data_keys = set(data.keys())
+-            keys_not_in_vars = data_keys - var_keys
+-            if keys_not_in_vars:
+-                raise ValueError(
+-                    "Data must only contain variables in original "
+-                    "dataset. Extra variables: {}".format(keys_not_in_vars)
+-                )
+-            keys_missing_from_data = var_keys - data_keys
+-            if keys_missing_from_data:
+-                raise ValueError(
+-                    "Data must contain all variables in original "
+-                    "dataset. Data is missing {}".format(keys_missing_from_data)
+-                )
+-            variables = {
+-                k: v.copy(deep=deep, data=data.get(k))
+-                for k, v in self._variables.items()
+-            }
++        try:
++            return self._all_compat(other, "broadcast_equals")
++        except (TypeError, AttributeError):
++            return False
++
++    def equals(self, other: "Dataset") -> bool:
++        """Two Datasets are equal if they have matching variables and
++        coordinates, all of which are equal.
++
++        Datasets can still be equal (like pandas objects) if they have NaN
++        values in the same locations.
++
++        This method is necessary because `v1 == v2` for ``Dataset``
++        does element-wise comparisons (like numpy.ndarrays).
++
++        See Also
++        --------
++        Dataset.broadcast_equals
++        Dataset.identical
++        """
++        try:
++            return self._all_compat(other, "equals")
++        except (TypeError, AttributeError):
++            return False
+ 
+-        attrs = copy.deepcopy(self._attrs) if deep else copy.copy(self._attrs)
++    def identical(self, other: "Dataset") -> bool:
++        """Like equals, but also checks all dataset attributes and the
++        attributes on all variables and coordinates.
+ 
+-        return self._replace(variables, attrs=attrs)
++        See Also
++        --------
++        Dataset.broadcast_equals
++        Dataset.equals
++        """
++        try:
++            return utils.dict_equiv(self.attrs, other.attrs) and self._all_compat(
++                other, "identical"
++            )
++        except (TypeError, AttributeError):
++            return False
+ 
+     @property
+-    def _level_coords(self) -> Dict[str, Hashable]:
+-        """Return a mapping of all MultiIndex levels and their corresponding
+-        coordinate name.
++    def indexes(self) -> Indexes:
++        """Mapping of pandas.Index objects used for label based indexing"""
++        if self._indexes is None:
++            self._indexes = default_indexes(self._variables, self._dims)
++        return Indexes(self._indexes)
++
++    @property
++    def coords(self) -> DatasetCoordinates:
++        """Dictionary of xarray.DataArray objects corresponding to coordinate
++        variables
+         """
+-        level_coords: Dict[str, Hashable] = {}
+-        for name, index in self.indexes.items():
+-            if isinstance(index, pd.MultiIndex):
+-                level_names = index.names
+-                (dim,) = self.variables[name].dims
+-                level_coords.update({lname: dim for lname in level_names})
+-        return level_coords
+-
+-    def _copy_listed(self, names: Iterable[Hashable]) -> "Dataset":
+-        """Create a new Dataset with the listed variables from this dataset and
+-        the all relevant coordinates. Skips all validation.
++        return DatasetCoordinates(self)
++
++    @property
++    def data_vars(self) -> DataVariables:
++        """Dictionary of DataArray objects corresponding to data variables"""
++        return DataVariables(self)
++
++    def set_coords(self, names: "Union[Hashable, Iterable[Hashable]]") -> "Dataset":
++        """Given names of one or more variables, set them as coordinates
++
++        Parameters
++        ----------
++        names : hashable or iterable of hashable
++            Name(s) of variables in this dataset to convert into coordinates.
++
++        Returns
++        -------
++        Dataset
++
++        See also
++        --------
++        Dataset.swap_dims
+         """
+-        variables: Dict[Hashable, Variable] = {}
+-        coord_names = set()
+-        indexes: Dict[Hashable, pd.Index] = {}
++        # TODO: allow inserting new coordinates with this method, like
++        # DataFrame.set_index?
++        # nb. check in self._variables, not self.data_vars to insure that the
++        # operation is idempotent
++        if isinstance(names, str) or not isinstance(names, Iterable):
++            names = [names]
++        else:
++            names = list(names)
++        self._assert_all_in_dataset(names)
++        obj = self.copy()
++        obj._coord_names.update(names)
++        return obj
+ 
+-        for name in names:
+-            try:
+-                variables[name] = self._variables[name]
+-            except KeyError:
+-                ref_name, var_name, var = _get_virtual_variable(
+-                    self._variables, name, self._level_coords, self.dims
++    def reset_coords(
++        self,
++        names: "Union[Hashable, Iterable[Hashable], None]" = None,
++        drop: bool = False,
++    ) -> "Dataset":
++        """Given names of coordinates, reset them to become variables
++
++        Parameters
++        ----------
++        names : hashable or iterable of hashable, optional
++            Name(s) of non-index coordinates in this dataset to reset into
++            variables. By default, all non-index coordinates are reset.
++        drop : bool, optional
++            If True, remove coordinates instead of converting them into
++            variables.
++
++        Returns
++        -------
++        Dataset
++        """
++        if names is None:
++            names = self._coord_names - set(self.dims)
++        else:
++            if isinstance(names, str) or not isinstance(names, Iterable):
++                names = [names]
++            else:
++                names = list(names)
++            self._assert_all_in_dataset(names)
++            bad_coords = set(names) & set(self.dims)
++            if bad_coords:
++                raise ValueError(
++                    "cannot remove index coordinates with reset_coords: %s" % bad_coords
+                 )
+-                variables[var_name] = var
+-                if ref_name in self._coord_names or ref_name in self.dims:
+-                    coord_names.add(var_name)
+-                if (var_name,) == var.dims:
+-                    indexes[var_name] = var.to_index()
++        obj = self.copy()
++        obj._coord_names.difference_update(names)
++        if drop:
++            for name in names:
++                del obj._variables[name]
++        return obj
+ 
+-        needed_dims: Set[Hashable] = set()
+-        for v in variables.values():
+-            needed_dims.update(v.dims)
++    def dump_to_store(self, store, **kwargs) -> None:
++        """Store dataset contents to a backends.*DataStore object."""
++        from ..backends.api import dump_to_store
+ 
+-        dims = {k: self.dims[k] for k in needed_dims}
++        # TODO: rename and/or cleanup this method to make it more consistent
++        # with to_netcdf()
++        dump_to_store(self, store, **kwargs)
+ 
+-        # preserves ordering of coordinates
+-        for k in self._variables:
+-            if k not in self._coord_names:
+-                continue
++    def to_netcdf(
++        self,
++        path=None,
++        mode: str = "w",
++        format: str = None,
++        group: str = None,
++        engine: str = None,
++        encoding: Mapping = None,
++        unlimited_dims: Iterable[Hashable] = None,
++        compute: bool = True,
++        invalid_netcdf: bool = False,
++    ) -> Union[bytes, "Delayed", None]:
++        """Write dataset contents to a netCDF file.
+ 
+-            if set(self.variables[k].dims) <= needed_dims:
+-                variables[k] = self._variables[k]
+-                coord_names.add(k)
+-                if k in self.indexes:
+-                    indexes[k] = self.indexes[k]
++        Parameters
++        ----------
++        path : str, Path or file-like, optional
++            Path to which to save this dataset. File-like objects are only
++            supported by the scipy engine. If no path is provided, this
++            function returns the resulting netCDF file as bytes; in this case,
++            we need to use scipy, which does not support netCDF version 4 (the
++            default format becomes NETCDF3_64BIT).
++        mode : {"w", "a"}, default: "w"
++            Write ('w') or append ('a') mode. If mode='w', any existing file at
++            this location will be overwritten. If mode='a', existing variables
++            will be overwritten.
++        format : {"NETCDF4", "NETCDF4_CLASSIC", "NETCDF3_64BIT", \
++                  "NETCDF3_CLASSIC"}, optional
++            File format for the resulting netCDF file:
+ 
+-        return self._replace(variables, coord_names, dims, indexes=indexes)
++            * NETCDF4: Data is stored in an HDF5 file, using netCDF4 API
++              features.
++            * NETCDF4_CLASSIC: Data is stored in an HDF5 file, using only
++              netCDF 3 compatible API features.
++            * NETCDF3_64BIT: 64-bit offset version of the netCDF 3 file format,
++              which fully supports 2+ GB files, but is only compatible with
++              clients linked against netCDF version 3.6.0 or later.
++            * NETCDF3_CLASSIC: The classic netCDF 3 file format. It does not
++              handle 2+ GB files very well.
+ 
+-    def _construct_dataarray(self, name: Hashable) -> "DataArray":
+-        """Construct a DataArray by indexing this dataset"""
+-        from .dataarray import DataArray
++            All formats are supported by the netCDF4-python library.
++            scipy.io.netcdf only supports the last two formats.
+ 
+-        try:
+-            variable = self._variables[name]
+-        except KeyError:
+-            _, name, variable = _get_virtual_variable(
+-                self._variables, name, self._level_coords, self.dims
+-            )
++            The default format is NETCDF4 if you are saving a file to disk and
++            have the netCDF4-python library available. Otherwise, xarray falls
++            back to using scipy to write netCDF files and defaults to the
++            NETCDF3_64BIT format (scipy does not support netCDF4).
++        group : str, optional
++            Path to the netCDF4 group in the given file to open (only works for
++            format='NETCDF4'). The group(s) will be created if necessary.
++        engine : {"netcdf4", "scipy", "h5netcdf"}, optional
++            Engine to use when writing netCDF files. If not provided, the
++            default engine is chosen based on available dependencies, with a
++            preference for 'netcdf4' if writing to a file on disk.
++        encoding : dict, optional
++            Nested dictionary with variable names as keys and dictionaries of
++            variable specific encodings as values, e.g.,
++            ``{"my_variable": {"dtype": "int16", "scale_factor": 0.1,
++            "zlib": True}, ...}``
+ 
+-        needed_dims = set(variable.dims)
++            The `h5netcdf` engine supports both the NetCDF4-style compression
++            encoding parameters ``{"zlib": True, "complevel": 9}`` and the h5py
++            ones ``{"compression": "gzip", "compression_opts": 9}``.
++            This allows using any compression plugin installed in the HDF5
++            library, e.g. LZF.
+ 
+-        coords: Dict[Hashable, Variable] = {}
+-        # preserve ordering
+-        for k in self._variables:
+-            if k in self._coord_names and set(self.variables[k].dims) <= needed_dims:
+-                coords[k] = self.variables[k]
++        unlimited_dims : iterable of hashable, optional
++            Dimension(s) that should be serialized as unlimited dimensions.
++            By default, no dimensions are treated as unlimited dimensions.
++            Note that unlimited_dims may also be set via
++            ``dataset.encoding["unlimited_dims"]``.
++        compute: bool, default: True
++            If true compute immediately, otherwise return a
++            ``dask.delayed.Delayed`` object that can be computed later.
++        invalid_netcdf: bool, default: False
++            Only valid along with ``engine="h5netcdf"``. If True, allow writing
++            hdf5 files which are invalid netcdf as described in
++            https://github.com/shoyer/h5netcdf.
++        """
++        if encoding is None:
++            encoding = {}
++        from ..backends.api import to_netcdf
+ 
+-        if self._indexes is None:
+-            indexes = None
+-        else:
+-            indexes = {k: v for k, v in self._indexes.items() if k in coords}
++        return to_netcdf(
++            self,
++            path,
++            mode,
++            format=format,
++            group=group,
++            engine=engine,
++            encoding=encoding,
++            unlimited_dims=unlimited_dims,
++            compute=compute,
++            invalid_netcdf=invalid_netcdf,
++        )
++
++    def to_zarr(
++        self,
++        store: Union[MutableMapping, str, Path] = None,
++        chunk_store: Union[MutableMapping, str, Path] = None,
++        mode: str = None,
++        synchronizer=None,
++        group: str = None,
++        encoding: Mapping = None,
++        compute: bool = True,
++        consolidated: bool = False,
++        append_dim: Hashable = None,
++        region: Mapping[str, slice] = None,
++    ) -> "ZarrStore":
++        """Write dataset contents to a zarr group.
++
++        .. note:: Experimental
++                  The Zarr backend is new and experimental. Please report any
++                  unexpected behavior via github issues.
++
++        Parameters
++        ----------
++        store : MutableMapping, str or Path, optional
++            Store or path to directory in file system.
++        chunk_store : MutableMapping, str or Path, optional
++            Store or path to directory in file system only for Zarr array chunks.
++            Requires zarr-python v2.4.0 or later.
++        mode : {"w", "w-", "a", None}, optional
++            Persistence mode: "w" means create (overwrite if exists);
++            "w-" means create (fail if exists);
++            "a" means override existing variables (create if does not exist).
++            If ``append_dim`` is set, ``mode`` can be omitted as it is
++            internally set to ``"a"``. Otherwise, ``mode`` will default to
++            `w-` if not set.
++        synchronizer : object, optional
++            Zarr array synchronizer.
++        group : str, optional
++            Group path. (a.k.a. `path` in zarr terminology.)
++        encoding : dict, optional
++            Nested dictionary with variable names as keys and dictionaries of
++            variable specific encodings as values, e.g.,
++            ``{"my_variable": {"dtype": "int16", "scale_factor": 0.1,}, ...}``
++        compute: bool, optional
++            If True write array data immediately, otherwise return a
++            ``dask.delayed.Delayed`` object that can be computed to write
++            array data later. Metadata is always updated eagerly.
++        consolidated: bool, optional
++            If True, apply zarr's `consolidate_metadata` function to the store
++            after writing metadata.
++        append_dim: hashable, optional
++            If set, the dimension along which the data will be appended. All
++            other dimensions on overriden variables must remain the same size.
++        region: dict, optional
++            Optional mapping from dimension names to integer slices along
++            dataset dimensions to indicate the region of existing zarr array(s)
++            in which to write this dataset's data. For example,
++            ``{'x': slice(0, 1000), 'y': slice(10000, 11000)}`` would indicate
++            that values should be written to the region ``0:1000`` along ``x``
++            and ``10000:11000`` along ``y``.
++
++            Two restrictions apply to the use of ``region``:
+ 
+-        return DataArray(variable, coords, name=name, indexes=indexes, fastpath=True)
++            - If ``region`` is set, _all_ variables in a dataset must have at
++              least one dimension in common with the region. Other variables
++              should be written in a separate call to ``to_zarr()``.
++            - Dimensions cannot be included in both ``region`` and
++              ``append_dim`` at the same time. To create empty arrays to fill
++              in with ``region``, use a separate call to ``to_zarr()`` with
++              ``compute=False``. See "Appending to existing Zarr stores" in
++              the reference documentation for full details.
++
++        References
++        ----------
++        https://zarr.readthedocs.io/
++
++        Notes
++        -----
++        Zarr chunking behavior:
++            If chunks are found in the encoding argument or attribute
++            corresponding to any DataArray, those chunks are used.
++            If a DataArray is a dask array, it is written with those chunks.
++            If not other chunks are found, Zarr uses its own heuristics to
++            choose automatic chunk sizes.
++        """
++        from ..backends.api import to_zarr
++
++        if encoding is None:
++            encoding = {}
++
++        return to_zarr(
++            self,
++            store=store,
++            chunk_store=chunk_store,
++            mode=mode,
++            synchronizer=synchronizer,
++            group=group,
++            encoding=encoding,
++            compute=compute,
++            consolidated=consolidated,
++            append_dim=append_dim,
++            region=region,
++        )
+ 
+     def __copy__(self) -> "Dataset":
+         return self.copy(deep=False)

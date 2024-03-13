@@ -1,0 +1,31 @@
+diff --git a/xarray/core/dataset.py b/xarray/core/dataset.py
+index a024324b..18f0d398 100644
+--- a/xarray/core/dataset.py
++++ b/xarray/core/dataset.py
+@@ -1,6 +1,7 @@
+ import copy
+ import datetime
+ import functools
++import logging
+ import sys
+ import warnings
+ from collections import defaultdict
+@@ -4508,6 +4509,8 @@ class Dataset(Mapping, ImplementsDatasetReduce, DataWithCoords):
+         -------
+         array : xarray.DataArray
+         """
++        start_time = logging.getLogger().handlers[0].formatter.start_time = time.time()
++
+         from .dataarray import DataArray
+ 
+         data_vars = [self.variables[k] for k in self.data_vars]
+@@ -4520,6 +4523,9 @@ class Dataset(Mapping, ImplementsDatasetReduce, DataWithCoords):
+ 
+         dims = (dim,) + broadcast_vars[0].dims
+ 
++        end_time = time.time()
++        logging.info(f"to_array execution time: {end_time - start_time} seconds")
++
+         return DataArray(
+             data, coords, dims, attrs=self.attrs, name=name, indexes=indexes
+         )

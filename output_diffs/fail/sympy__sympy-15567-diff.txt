@@ -1,0 +1,21 @@
+diff --git a/sympy/core/numbers.py b/sympy/core/numbers.py
+index a63a315484..4ed50a213c 100644
+--- a/sympy/core/numbers.py
++++ b/sympy/core/numbers.py
+@@ -575,9 +575,13 @@ def __divmod__(self, other):
+             return Tuple(*divmod(self.p, other.p))
+         else:
+             rat = self/other
+-        w = sign(rat)*int(abs(rat))  # = rat.floor()
+-        r = self - other*w
+-        return Tuple(w, r)
++            w = int(rat)  # = rat.floor()
++            r = self - other*w
++            # Adjust the remainder and quotient if the remainder has a different sign than the divisor
++            if sign(r) != sign(other):
++                w -= sign(other)
++                r += other
++            return Tuple(w, r)
+ 
+     def __rdivmod__(self, other):
+         try:

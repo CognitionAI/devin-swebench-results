@@ -1,0 +1,30 @@
+diff --git a/sklearn/ensemble/_forest.py b/sklearn/ensemble/_forest.py
+index 3e5efd7b0..728f944be 100644
+--- a/sklearn/ensemble/_forest.py
++++ b/sklearn/ensemble/_forest.py
+@@ -2338,14 +2338,14 @@ class ExtraTreesRegressor(ForestRegressor):
+ 
+     Attributes
+     ----------
+-    estimator_ : :class:`~sklearn.tree.ExtraTreeRegressor`
++    estimator_ : :class:`~sklearn.tree.ExtraTreeRegressor` instance
+         The child estimator template used to create the collection of fitted
+         sub-estimators.
+ 
+         .. versionadded:: 1.2
+            `base_estimator_` was renamed to `estimator_`.
+ 
+-    base_estimator_ : ExtraTreeRegressor
++    base_estimator_ : :class:`~sklearn.tree.ExtraTreeRegressor` instance
+         The child estimator template used to create the collection of fitted
+         sub-estimators.
+ 
+@@ -2379,7 +2379,7 @@ class ExtraTreesRegressor(ForestRegressor):
+         .. versionadded:: 1.0
+ 
+     n_outputs_ : int
+-        The number of outputs.
++        The number of outputs when ``fit`` is performed.
+ 
+     oob_score_ : float
+         Score of the training dataset obtained using an out-of-bag estimate.

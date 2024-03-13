@@ -1,0 +1,97 @@
+diff --git a/setup.py b/setup.py
+index ca08a6d4a..6a02727b1 100644
+--- a/setup.py
++++ b/setup.py
+@@ -21,7 +21,7 @@ install_requires = [
+     'sphinxcontrib-htmlhelp',
+     'sphinxcontrib-serializinghtml',
+     'sphinxcontrib-qthelp',
+-    'Jinja2>=2.3',
++    'Jinja2<3.1',
+     'Pygments>=2.0',
+     'docutils>=0.12',
+     'snowballstemmer>=1.1',
+diff --git a/sphinx/ext/autodoc/__init__.py b/sphinx/ext/autodoc/__init__.py
+index 171a3e7b0..a521c8f65 100644
+--- a/sphinx/ext/autodoc/__init__.py
++++ b/sphinx/ext/autodoc/__init__.py
+@@ -40,7 +40,7 @@ if False:
+     # For type annotation
+     from typing import Type  # NOQA # for python3.5.1
+ 
+-    from sphinx.ext.autodoc.directive import DocumenterBridge
++from sphinx.ext.autodoc.directive import DocumenterBridge
+ 
+ 
+ logger = logging.getLogger(__name__)
+@@ -181,7 +181,7 @@ def merge_members_option(options: Dict) -> None:
+ 
+ # Some useful event listener factories for autodoc-process-docstring.
+ 
+-def cut_lines(pre: int, post: int = 0, what: str = None) -> Callable:
++def cut_lines(pre: int, post: int = 0, what: Optional[Sequence[str]] = None) -> Callable:
+     """Return a listener that removes the first *pre* and last *post*
+     lines of every docstring.  If *what* is a sequence of strings,
+     only docstrings of a type in *what* will be processed.
+@@ -209,7 +209,7 @@ def cut_lines(pre: int, post: int = 0, what: str = None) -> Callable:
+     return process
+ 
+ 
+-def between(marker: str, what: Sequence[str] = None, keepempty: bool = False,
++def between(marker: str, what: Optional[Sequence[str]] = None, keepempty: bool = False,
+             exclude: bool = False) -> Callable:
+     """Return a listener that either keeps, or if *exclude* is True excludes,
+     lines between lines that match the *marker* regular expression.  If no line
+@@ -2094,26 +2094,25 @@ class AttributeDocumenter(DocstringStripSignatureMixin, ClassLevelDocumenter):
+             # obtain type annotation for this attribute
+             try:
+                 annotations = get_type_hints(self.parent)
+-            except NameError:
+-                # Failed to evaluate ForwardRef (maybe TYPE_CHECKING)
++            except Exception:
+                 annotations = safe_getattr(self.parent, '__annotations__', {})
+-            except TypeError:
+-                annotations = {}
+-            except KeyError:
+-                # a broken class found (refs: https://github.com/sphinx-doc/sphinx/issues/8084)
+-                annotations = {}
+-            except AttributeError:
+-                # AttributeError is raised on 3.5.2 (fixed by 3.5.3)
+-                annotations = {}
+ 
+-            if self.objpath[-1] in annotations:
+-                objrepr = stringify_typehint(annotations.get(self.objpath[-1]))
++            # Apply autodoc_type_aliases to the obtained annotations
++            type_aliases = self.config.autodoc_type_aliases
++            annotation = annotations.get(self.objpath[-1])
++            if annotation in type_aliases:
++                annotation = type_aliases[annotation]
++            if annotation:
++                objrepr = stringify_typehint(annotation)
+                 self.add_line('   :type: ' + objrepr, sourcename)
+             else:
+                 key = ('.'.join(self.objpath[:-1]), self.objpath[-1])
+                 if self.analyzer and key in self.analyzer.annotations:
+-                    self.add_line('   :type: ' + self.analyzer.annotations[key],
+-                                  sourcename)
++                    # Apply autodoc_type_aliases to the analyzer annotations
++                    annotation = self.analyzer.annotations[key]
++                    if annotation in type_aliases:
++                        annotation = type_aliases[annotation]
++                    self.add_line('   :type: ' + annotation, sourcename)
+ 
+             # data descriptors do not have useful values
+             if not self._datadescriptor:
+diff --git a/tox.ini b/tox.ini
+index dbb705a3a..9f4fc3a32 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -28,7 +28,7 @@ setenv =
+     PYTHONWARNINGS = all,ignore::ImportWarning:importlib._bootstrap_external,ignore::DeprecationWarning:site,ignore::DeprecationWarning:distutils
+     PYTEST_ADDOPTS = {env:PYTEST_ADDOPTS:} --color yes
+ commands=
+-    python -X dev -m pytest --durations 25 {posargs}
++    python -X dev -m pytest -rA --durations 25 {posargs}
+ 
+ [testenv:flake8]
+ basepython = python3

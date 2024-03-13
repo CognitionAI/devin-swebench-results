@@ -1,0 +1,185 @@
+diff --git a/django/db/migrations/operations/fields.py b/django/db/migrations/operations/fields.py
+index 641c142191..ff5a973635 100644
+--- a/django/db/migrations/operations/fields.py
++++ b/django/db/migrations/operations/fields.py
+@@ -25,38 +25,34 @@ class FieldOperation(Operation):
+     def is_same_field_operation(self, operation):
+         return self.is_same_model_operation(operation) and self.name_lower == operation.name_lower
+ 
+-    def references_model(self, name, app_label):
++    def references_model(self, name):
+         name_lower = name.lower()
+         if name_lower == self.model_name_lower:
+             return True
+         if self.field:
+             return bool(field_references(
+-                (app_label, self.model_name_lower), self.field, (app_label, name_lower)
++                (self.model_name_lower), self.field, (name_lower)
+             ))
+         return False
+ 
+-    def references_field(self, model_name, name, app_label):
++    def references_field(self, model_name, name):
+         model_name_lower = model_name.lower()
+-        # Check if this operation locally references the field.
+-        if model_name_lower == self.model_name_lower:
+-            if name == self.name:
+-                return True
+-            elif self.field and hasattr(self.field, 'from_fields') and name in self.field.from_fields:
+-                return True
+-        # Check if this operation remotely references the field.
++        name_lower = name.lower()
++        if model_name_lower == self.model_name_lower and name_lower == self.name_lower:
++            return True
+         if self.field is None:
+             return False
+         return bool(field_references(
+-            (app_label, self.model_name_lower),
++            (self.model_name_lower),
+             self.field,
+-            (app_label, model_name_lower),
+-            name,
++            (model_name_lower),
++            name_lower,
+         ))
+ 
+-    def reduce(self, operation, app_label):
++    def reduce(self, operation):
+         return (
+-            super().reduce(operation, app_label) or
+-            not operation.references_field(self.model_name, self.name, app_label)
++            super().reduce(operation) or
++            not operation.references_field(self.model_name, self.name)
+         )
+ 
+ 
+@@ -95,13 +91,13 @@ class AddField(FieldOperation):
+         if self.allow_migrate_model(schema_editor.connection.alias, to_model):
+             from_model = from_state.apps.get_model(app_label, self.model_name)
+             field = to_model._meta.get_field(self.name)
+-            if not self.preserve_default:
++            if not self.preserve_default and self.field is not None:
+                 field.default = self.field.default
+             schema_editor.add_field(
+                 from_model,
+                 field,
+             )
+-            if not self.preserve_default:
++            if not self.preserve_default and self.field is not None:
+                 field.default = NOT_PROVIDED
+ 
+     def database_backwards(self, app_label, schema_editor, from_state, to_state):
+@@ -116,7 +112,7 @@ class AddField(FieldOperation):
+     def migration_name_fragment(self):
+         return '%s_%s' % (self.model_name_lower, self.name_lower)
+ 
+-    def reduce(self, operation, app_label):
++    def reduce(self, operation):
+         if isinstance(operation, FieldOperation) and self.is_same_field_operation(operation):
+             if isinstance(operation, AlterField):
+                 return [
+@@ -136,7 +132,7 @@ class AddField(FieldOperation):
+                         field=self.field,
+                     ),
+                 ]
+-        return super().reduce(operation, app_label)
++        return super().reduce(operation)
+ 
+ 
+ class RemoveField(FieldOperation):
+@@ -174,11 +170,11 @@ class RemoveField(FieldOperation):
+     def migration_name_fragment(self):
+         return 'remove_%s_%s' % (self.model_name_lower, self.name_lower)
+ 
+-    def reduce(self, operation, app_label):
++    def reduce(self, operation):
+         from .models import DeleteModel
+         if isinstance(operation, DeleteModel) and operation.name_lower == self.model_name_lower:
+             return [operation]
+-        return super().reduce(operation, app_label)
++        return super().reduce(operation)
+ 
+ 
+ class AlterField(FieldOperation):
+@@ -220,10 +216,10 @@ class AlterField(FieldOperation):
+             from_model = from_state.apps.get_model(app_label, self.model_name)
+             from_field = from_model._meta.get_field(self.name)
+             to_field = to_model._meta.get_field(self.name)
+-            if not self.preserve_default:
++            if not self.preserve_default and self.field is not None:
+                 to_field.default = self.field.default
+             schema_editor.alter_field(from_model, from_field, to_field)
+-            if not self.preserve_default:
++            if not self.preserve_default and self.field is not None:
+                 to_field.default = NOT_PROVIDED
+ 
+     def database_backwards(self, app_label, schema_editor, from_state, to_state):
+@@ -236,7 +232,7 @@ class AlterField(FieldOperation):
+     def migration_name_fragment(self):
+         return 'alter_%s_%s' % (self.model_name_lower, self.name_lower)
+ 
+-    def reduce(self, operation, app_label):
++    def reduce(self, operation):
+         if isinstance(operation, RemoveField) and self.is_same_field_operation(operation):
+             return [operation]
+         elif isinstance(operation, RenameField) and self.is_same_field_operation(operation):
+@@ -248,7 +244,7 @@ class AlterField(FieldOperation):
+                     field=self.field,
+                 ),
+             ]
+-        return super().reduce(operation, app_label)
++        return super().reduce(operation)
+ 
+ 
+ class RenameField(FieldOperation):
+@@ -286,10 +282,18 @@ class RenameField(FieldOperation):
+         to_model = to_state.apps.get_model(app_label, self.model_name)
+         if self.allow_migrate_model(schema_editor.connection.alias, to_model):
+             from_model = from_state.apps.get_model(app_label, self.model_name)
++            # Get the old field and new field objects
++            old_field = from_model._meta.get_field(self.old_name)
++            new_field = to_model._meta.get_field(self.new_name)
++
++            # Check if the db_column for both fields is the same
++            if old_field.db_column == new_field.db_column:
++                # If they are the same, do not generate any SQL and exit the method
++                return
+             schema_editor.alter_field(
+                 from_model,
+-                from_model._meta.get_field(self.old_name),
+-                to_model._meta.get_field(self.new_name),
++                old_field,
++                new_field,
+             )
+ 
+     def database_backwards(self, app_label, schema_editor, from_state, to_state):
+@@ -313,13 +317,13 @@ class RenameField(FieldOperation):
+             self.new_name_lower,
+         )
+ 
+-    def references_field(self, model_name, name, app_label):
+-        return self.references_model(model_name, app_label) and (
++    def references_field(self, model_name, name):
++        return self.references_model(model_name) and (
+             name.lower() == self.old_name_lower or
+             name.lower() == self.new_name_lower
+         )
+ 
+-    def reduce(self, operation, app_label):
++    def reduce(self, operation):
+         if (isinstance(operation, RenameField) and
+                 self.is_same_model_operation(operation) and
+                 self.new_name_lower == operation.old_name_lower):
+@@ -333,9 +337,9 @@ class RenameField(FieldOperation):
+         # Skip `FieldOperation.reduce` as we want to run `references_field`
+         # against self.old_name and self.new_name.
+         return (
+-            super(FieldOperation, self).reduce(operation, app_label) or
++            super(FieldOperation, self).reduce(operation) or
+             not (
+-                operation.references_field(self.model_name, self.old_name, app_label) or
+-                operation.references_field(self.model_name, self.new_name, app_label)
++                operation.references_field(self.model_name, self.old_name) or
++                operation.references_field(self.model_name, self.new_name)
+             )
+         )

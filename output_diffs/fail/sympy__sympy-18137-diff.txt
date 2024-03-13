@@ -1,0 +1,15 @@
+diff --git a/sympy/sets/fancysets.py b/sympy/sets/fancysets.py
+index f74693b470..2233b2b0ec 100644
+--- a/sympy/sets/fancysets.py
++++ b/sympy/sets/fancysets.py
+@@ -684,7 +684,9 @@ def _contains(self, other):
+         elif self.stop.is_finite:
+             ref = self.stop
+         else:
+-            return other.is_Integer
++            ref = Dummy('ref', integer=True)
++        if other.is_symbol:
++            return And(Eq((ref - other) % self.step, 0), other >= self.inf, other <= self.sup)
+         if (ref - other) % self.step:  # off sequence
+             return S.false
+         return _sympify(other >= self.inf and other <= self.sup)

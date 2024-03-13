@@ -1,0 +1,24 @@
+diff --git a/sklearn/linear_model/logistic.py b/sklearn/linear_model/logistic.py
+index 26eaeaa02..d355855c9 100644
+--- a/sklearn/linear_model/logistic.py
++++ b/sklearn/linear_model/logistic.py
+@@ -717,6 +717,9 @@ def logistic_regression_path(X, y, pos_class=None, Cs=10, fit_intercept=True,
+             args = (X, target, 1. / C, sample_weight)
+             w0, n_iter_i = newton_cg(hess, func, grad, w0, args=args,
+                                      maxiter=max_iter, tol=tol)
++            if n_iter_i == max_iter and verbose > 0:
++                warnings.warn("newton-cg failed to converge. Increase the "
++                              "number of iterations.", ConvergenceWarning)
+         elif solver == 'liblinear':
+             coef_, intercept_, n_iter_i, = _fit_liblinear(
+                 X, target, C, fit_intercept, intercept_scaling, None,
+@@ -744,6 +747,9 @@ def logistic_regression_path(X, y, pos_class=None, Cs=10, fit_intercept=True,
+                 beta, max_iter, tol,
+                 verbose, random_state, False, max_squared_sum, warm_start_sag,
+                 is_saga=(solver == 'saga'))
++            if n_iter_i == max_iter and verbose > 0:
++                warnings.warn("sag failed to converge. Increase the number "
++                              "of iterations.", ConvergenceWarning)
+ 
+         else:
+             raise ValueError("solver must be one of {'liblinear', 'lbfgs', "

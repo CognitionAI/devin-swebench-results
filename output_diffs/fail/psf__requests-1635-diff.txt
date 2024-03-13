@@ -1,0 +1,34 @@
+diff --git a/requests/sessions.py b/requests/sessions.py
+index aa956d3f..c4937752 100644
+--- a/requests/sessions.py
++++ b/requests/sessions.py
+@@ -9,7 +9,7 @@ requests (cookies, auth, proxies).
+ 
+ """
+ import os
+-from collections import Mapping
++from collections.abc import Mapping
+ from datetime import datetime
+ 
+ from .compat import cookielib, OrderedDict, urljoin, urlparse
+@@ -127,12 +127,14 @@ class SessionRedirectMixin(object):
+                 prepared_request.body = None
+ 
+             headers = prepared_request.headers
+-            try:
+-                del headers['Cookie']
+-            except KeyError:
+-                pass
+-
+-            prepared_request.prepare_cookies(self.cookies)
++            # Only delete 'Cookie' header if there are no cookies to send
++            if len(self.cookies) == 0:
++                try:
++                    del headers['Cookie']
++                except KeyError:
++                    pass
++            else:
++                prepared_request.prepare_cookies(self.cookies)
+ 
+             resp = self.send(
+                 prepared_request,

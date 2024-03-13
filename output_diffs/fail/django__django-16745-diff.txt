@@ -1,0 +1,16 @@
+diff --git a/django/core/validators.py b/django/core/validators.py
+index 6c622f5788..7a1aff3fe5 100644
+--- a/django/core/validators.py
++++ b/django/core/validators.py
+@@ -397,8 +397,9 @@ class StepValueValidator(BaseValidator):
+     message = _("Ensure this value is a multiple of step size %(limit_value)s.")
+     code = "step_size"
+ 
+-    def compare(self, a, b):
+-        return not math.isclose(math.remainder(a, b), 0, abs_tol=1e-9)
++    def compare(self, a, b, min_value=0):
++        offset = a - min_value
++        return not math.isclose(math.remainder(offset, b), 0, abs_tol=1e-9)
+ 
+ 
+ @deconstructible

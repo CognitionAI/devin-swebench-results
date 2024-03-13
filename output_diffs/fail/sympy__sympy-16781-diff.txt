@@ -1,0 +1,27 @@
+diff --git a/sympy/printing/dot.py b/sympy/printing/dot.py
+index 47174a364a..21a5cd9633 100644
+--- a/sympy/printing/dot.py
++++ b/sympy/printing/dot.py
+@@ -108,13 +108,18 @@ def dotedges(expr, atom=lambda x: not isinstance(x, Basic), pos=(), repeat=True)
+     if atom(expr):
+         return []
+     else:
+-        # TODO: This is quadratic in complexity (purestr(expr) already
+-        # contains [purestr(arg) for arg in expr.args]).
++        from sympy.core.power import Pow
+         expr_str = purestr(expr)
+-        arg_strs = [purestr(arg) for arg in expr.args]
++        if isinstance(expr, Pow):
++            arg_strs = [purestr(expr.base), purestr(expr.exp)]
++        else:
++            arg_strs = [purestr(arg) for arg in expr.args]
+         if repeat:
+             expr_str += '_%s' % str(pos)
+-            arg_strs = [arg_str + '_%s' % str(pos + (i,)) for i, arg_str in enumerate(arg_strs)]
++            if isinstance(expr, Pow):
++                arg_strs = [arg_strs[0] + '_%s' % str(pos + (0,)), arg_strs[1] + '_%s' % str(pos + (1,))]
++            else:
++                arg_strs = [arg_str + '_%s' % str(pos + (i,)) for i, arg_str in enumerate(arg_strs)]
+         return ['"%s" -> "%s";' % (expr_str, arg_str) for arg_str in arg_strs]
+ 
+ template = \

@@ -1,0 +1,29 @@
+diff --git a/django/contrib/auth/base_user.py b/django/contrib/auth/base_user.py
+index 5ee30bf59c..74e5657a0b 100644
+--- a/django/contrib/auth/base_user.py
++++ b/django/contrib/auth/base_user.py
+@@ -15,6 +15,7 @@ from django.db import models
+ from django.utils.crypto import get_random_string, salted_hmac
+ from django.utils.deprecation import RemovedInDjango51Warning
+ from django.utils.translation import gettext_lazy as _
++from django.conf import settings
+ 
+ 
+ class BaseUserManager(models.Manager):
+@@ -133,12 +134,15 @@ class AbstractBaseUser(models.Model):
+ 
+     def get_session_auth_hash(self):
+         """
+-        Return an HMAC of the password field.
++        Return an HMAC of the password field, considering SECRET_KEY_FALLBACKS.
+         """
+         key_salt = "django.contrib.auth.models.AbstractBaseUser.get_session_auth_hash"
++        # Use the first key in the fallback list to generate the hash
++        secret = settings.SECRET_KEY_FALLBACKS[0] if settings.SECRET_KEY_FALLBACKS else settings.SECRET_KEY
+         return salted_hmac(
+             key_salt,
+             self.password,
++            secret=secret,
+             algorithm="sha256",
+         ).hexdigest()
+ 

@@ -1,0 +1,176 @@
+diff --git a/doc/conf.py b/doc/conf.py
+index 77d2a577a..c27cb54ce 100644
+--- a/doc/conf.py
++++ b/doc/conf.py
+@@ -143,15 +143,14 @@ def parse_event(env, sig, signode):
+ def setup(app):
+     from sphinx.ext.autodoc import cut_lines
+     from sphinx.util.docfields import GroupedField
+-    app.connect('autodoc-process-docstring', cut_lines(4, what=['module']))
++    app.connect('autodoc-process-docstring', cut_lines(4, what='module'))
++    fdesc = GroupedField('parameter', label='Parameters', names=('param',), can_collapse=True)
+     app.add_object_type('confval', 'confval',
+                         objname='configuration value',
+                         indextemplate='pair: %s; configuration value')
+     app.add_object_type('setuptools-confval', 'setuptools-confval',
+                         objname='setuptools configuration value',
+                         indextemplate='pair: %s; setuptools configuration value')
+-    fdesc = GroupedField('parameter', label='Parameters',
+-                         names=['param'], can_collapse=True)
+     app.add_object_type('event', 'event', 'pair: %s; event', parse_event,
+                         doc_field_types=[fdesc])
+ 
+diff --git a/doc/man/sphinx-autogen.rst b/doc/man/sphinx-autogen.rst
+index 18ae8d1e9..c4688b462 100644
+--- a/doc/man/sphinx-autogen.rst
++++ b/doc/man/sphinx-autogen.rst
+@@ -47,12 +47,12 @@ Given the following directory structure::
+     docs
+     ├── index.rst
+     └── ...
+-    foobar
+-    ├── foo
++    mymodule
++    ├── mysubmodule
+     │   └── __init__.py
+-    └── bar
++    └── myothermodule
+         ├── __init__.py
+-        └── baz
++        └── mysubmodule2
+             └── __init__.py
+ 
+ and assuming ``docs/index.rst`` contained the following:
+@@ -65,9 +65,9 @@ and assuming ``docs/index.rst`` contained the following:
+     .. autosummary::
+        :toctree: modules
+ 
+-       foobar.foo
+-       foobar.bar
+-       foobar.bar.baz
++       # mymodule.mysubmodule
++       # mymodule.myothermodule
++       # mymodule.myothermodule.mysubmodule2
+ 
+ If you run the following:
+ 
+@@ -80,9 +80,9 @@ then the following stub files will be created in ``docs``::
+     docs
+     ├── index.rst
+     └── modules
+-        ├── foobar.bar.rst
+-        ├── foobar.bar.baz.rst
+-        └── foobar.foo.rst
++        # ├── mymodule.myothermodule.rst
++        # ├── mymodule.myothermodule.mysubmodule2.rst
++        # └── mymodule.mysubmodule.rst
+ 
+ and each of those files will contain a :rst:dir:`autodoc` directive and some
+ other information.
+diff --git a/doc/usage/extensions/autodoc.rst b/doc/usage/extensions/autodoc.rst
+index 60cde1ac7..0d52b8ca2 100644
+--- a/doc/usage/extensions/autodoc.rst
++++ b/doc/usage/extensions/autodoc.rst
+@@ -87,16 +87,13 @@ inserting them into the page source under a suitable :rst:dir:`py:module`,
+ 
+          .. method:: boil(time=10)
+ 
+-            Boil the noodle *time* minutes.
++            .. Boil the noodle *time* minutes.
+ 
+    **Options and advanced usage**
+ 
+    * If you want to automatically document members, there's a ``members``
+      option::
+ 
+-        .. automodule:: noodle
+-           :members:
+-
+      will document all module members (recursively), and ::
+ 
+         .. autoclass:: Noodle
+@@ -124,9 +121,6 @@ inserting them into the page source under a suitable :rst:dir:`py:module`,
+         You can use a negated form, :samp:`'no-{flag}'`, as an option of
+         autodoc directive, to disable it temporarily.  For example::
+ 
+-           .. automodule:: foo
+-              :no-undoc-members:
+-
+ 
+    * Members without docstrings will be left out, unless you give the
+      ``undoc-members`` flag option::
+diff --git a/setup.py b/setup.py
+index 088d5b8e7..5d44aa78f 100644
+--- a/setup.py
++++ b/setup.py
+@@ -21,7 +21,7 @@ install_requires = [
+     'sphinxcontrib-htmlhelp',
+     'sphinxcontrib-serializinghtml',
+     'sphinxcontrib-qthelp',
+-    'Jinja2>=2.3',
++    'Jinja2<3.1',
+     'Pygments>=2.0',
+     'docutils>=0.12',
+     'snowballstemmer>=1.1',
+diff --git a/sphinx/cmd/build.py b/sphinx/cmd/build.py
+index 263794a5a..df12bc326 100644
+--- a/sphinx/cmd/build.py
++++ b/sphinx/cmd/build.py
+@@ -286,7 +286,6 @@ def build_main(argv: List[str] = sys.argv[1:]) -> int:
+ 
+ 
+ def main(argv: List[str] = sys.argv[1:]) -> int:
+-    sphinx.locale.setlocale(locale.LC_ALL, '')
+     sphinx.locale.init_console(os.path.join(package_dir, 'locale'), 'sphinx')
+ 
+     if argv[:1] == ['-M']:
+diff --git a/sphinx/ext/napoleon/__init__.py b/sphinx/ext/napoleon/__init__.py
+index 10b1ff3a3..2e21c8356 100644
+--- a/sphinx/ext/napoleon/__init__.py
++++ b/sphinx/ext/napoleon/__init__.py
+@@ -366,15 +366,17 @@ def _process_docstring(app: Sphinx, what: str, name: str, obj: Any,
+ 
+     """
+     result_lines = lines
+-    docstring = None  # type: GoogleDocstring
+-    if app.config.napoleon_numpy_docstring:
+-        docstring = NumpyDocstring(result_lines, app.config, app, what, name,
+-                                   obj, options)
+-        result_lines = docstring.lines()
+-    if app.config.napoleon_google_docstring:
+-        docstring = GoogleDocstring(result_lines, app.config, app, what, name,
+-                                    obj, options)
+-        result_lines = docstring.lines()
++    if options.noindex:
++        # Skip processing the Attributes: section
++        result_lines = [line for line in result_lines if not line.startswith('Attributes:')]
++    else:
++        # Existing logic to process NumPy and Google style docstrings
++        if app.config.napoleon_numpy_docstring:
++            docstring = NumpyDocstring(result_lines, app.config, app, what, name, obj, options)
++            result_lines = docstring.lines()
++        if app.config.napoleon_google_docstring:
++            docstring = GoogleDocstring(result_lines, app.config, app, what, name, obj, options)
++            result_lines = docstring.lines()
+     lines[:] = result_lines[:]
+ 
+ 
+@@ -460,4 +462,4 @@ def _skip_member(app: Sphinx, what: str, name: str, obj: Any,
+                     (is_private and inc_private) or
+                     (is_init and inc_init)):
+                 return False
+-    return None
++    return False
+diff --git a/tox.ini b/tox.ini
+index d9f040544..bf39854b6 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -28,7 +28,7 @@ extras =
+ setenv =
+     PYTHONWARNINGS = all,ignore::ImportWarning:importlib._bootstrap_external,ignore::DeprecationWarning:site,ignore::DeprecationWarning:distutils
+ commands=
+-    pytest --durations 25 {posargs}
++    pytest -rA --durations 25 {posargs}
+ 
+ [testenv:flake8]
+ basepython = python3

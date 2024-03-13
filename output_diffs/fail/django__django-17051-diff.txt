@@ -1,0 +1,22 @@
+diff --git a/django/db/models/query.py b/django/db/models/query.py
+index 5ac2407ea3..e3ac32d9f6 100644
+--- a/django/db/models/query.py
++++ b/django/db/models/query.py
+@@ -812,7 +812,7 @@ class QuerySet(AltersData):
+                 connection = connections[self.db]
+                 if (
+                     connection.features.can_return_rows_from_bulk_insert
+-                    and on_conflict is None
++                    and (on_conflict is None or update_conflicts)
+                 ):
+                     assert len(returned_columns) == len(objs_without_pk)
+                 for obj_without_pk, results in zip(objs_without_pk, returned_columns):
+@@ -1837,7 +1837,7 @@ class QuerySet(AltersData):
+         inserted_rows = []
+         bulk_return = connection.features.can_return_rows_from_bulk_insert
+         for item in [objs[i : i + batch_size] for i in range(0, len(objs), batch_size)]:
+-            if bulk_return and on_conflict is None:
++            if bulk_return and (on_conflict is None or update_conflicts):
+                 inserted_rows.extend(
+                     self._insert(
+                         item,

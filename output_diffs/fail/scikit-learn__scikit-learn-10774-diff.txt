@@ -1,0 +1,218 @@
+diff --git a/sklearn/datasets/california_housing.py b/sklearn/datasets/california_housing.py
+index 84c80f331..bdb3ae233 100644
+--- a/sklearn/datasets/california_housing.py
++++ b/sklearn/datasets/california_housing.py
+@@ -50,7 +50,8 @@ MODULE_DOCS = __doc__
+ logger = logging.getLogger(__name__)
+ 
+ 
+-def fetch_california_housing(data_home=None, download_if_missing=True):
++def fetch_california_housing(data_home=None, download_if_missing=True,
++                             return_X_y=False):
+     """Loader for the California housing dataset from StatLib.
+ 
+     Read more in the :ref:`User Guide <datasets>`.
+@@ -65,6 +66,9 @@ def fetch_california_housing(data_home=None, download_if_missing=True):
+         If False, raise a IOError if the data is not locally available
+         instead of trying to download the data from the source site.
+ 
++    return_X_y : boolean, default=False.
++        If True, returns (data, target) instead of a Bunch object.
++
+     Returns
+     -------
+     dataset : dict-like object with the following attributes:
+@@ -81,6 +85,8 @@ def fetch_california_housing(data_home=None, download_if_missing=True):
+     dataset.DESCR : string
+         Description of the California housing dataset.
+ 
++    (data, target) : tuple if `return_X_y` is True
++
+     Notes
+     ------
+ 
+@@ -132,7 +138,8 @@ def fetch_california_housing(data_home=None, download_if_missing=True):
+     # target in units of 100,000
+     target = target / 100000.0
+ 
+-    return Bunch(data=data,
+-                 target=target,
+-                 feature_names=feature_names,
+-                 DESCR=MODULE_DOCS)
++    if return_X_y:
++        return data, target
++    else:
++        return Bunch(data=data, target=target,
++                     feature_names=feature_names, DESCR=MODULE_DOCS)
+diff --git a/sklearn/datasets/covtype.py b/sklearn/datasets/covtype.py
+index c0c8f7899..23b3739ea 100644
+--- a/sklearn/datasets/covtype.py
++++ b/sklearn/datasets/covtype.py
+@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
+ 
+ 
+ def fetch_covtype(data_home=None, download_if_missing=True,
+-                  random_state=None, shuffle=False):
++                  random_state=None, shuffle=False, return_X_y=False):
+     """Load the covertype dataset, downloading it if necessary.
+ 
+     Read more in the :ref:`User Guide <datasets>`.
+@@ -67,6 +67,9 @@ def fetch_covtype(data_home=None, download_if_missing=True,
+     shuffle : bool, default=False
+         Whether to shuffle dataset.
+ 
++    return_X_y : boolean, default=False
++        If True, returns (data, target) instead of a Bunch object.
++
+     Returns
+     -------
+     dataset : dict-like object with the following attributes:
+@@ -81,6 +84,8 @@ def fetch_covtype(data_home=None, download_if_missing=True,
+     dataset.DESCR : string
+         Description of the forest covertype dataset.
+ 
++    (data, target) : tuple if `return_X_y` is True
++
+     """
+ 
+     data_home = get_data_home(data_home=data_home)
+@@ -120,4 +125,7 @@ def fetch_covtype(data_home=None, download_if_missing=True,
+         X = X[ind]
+         y = y[ind]
+ 
+-    return Bunch(data=X, target=y, DESCR=__doc__)
++    if return_X_y:
++        return X, y
++    else:
++        return Bunch(data=X, target=y, DESCR=__doc__)
+diff --git a/sklearn/datasets/kddcup99.py b/sklearn/datasets/kddcup99.py
+index e946be200..3c8a8dc37 100644
+--- a/sklearn/datasets/kddcup99.py
++++ b/sklearn/datasets/kddcup99.py
+@@ -14,10 +14,7 @@ from gzip import GzipFile
+ import logging
+ import os
+ from os.path import exists, join
+-
+ import numpy as np
+-
+-
+ from .base import _fetch_remote
+ from .base import get_data_home
+ from .base import RemoteFileMetadata
+@@ -46,8 +43,8 @@ logger = logging.getLogger(__name__)
+ 
+ 
+ def fetch_kddcup99(subset=None, data_home=None, shuffle=False,
+-                   random_state=None,
+-                   percent10=True, download_if_missing=True):
++                   random_state=None, percent10=True, download_if_missing=True,
++                   return_X_y=False):
+     """Load and return the kddcup 99 dataset (classification).
+ 
+     The KDD Cup '99 dataset was created by processing the tcpdump portions
+@@ -155,13 +152,16 @@ def fetch_kddcup99(subset=None, data_home=None, shuffle=False,
+         If False, raise a IOError if the data is not locally available
+         instead of trying to download the data from the source site.
+ 
++    return_X_y : bool, default=False
++        If True, returns (data, target) instead of a Bunch object.
++
+     Returns
+     -------
+     data : Bunch
+         Dictionary-like object, the interesting attributes are:
+         'data', the data to learn and 'target', the regression target for each
+         sample.
+-
++        If `return_X_y` is True, returns (data, target) instead.
+ 
+     References
+     ----------
+@@ -230,7 +230,10 @@ def fetch_kddcup99(subset=None, data_home=None, shuffle=False,
+     if shuffle:
+         data, target = shuffle_method(data, target, random_state=random_state)
+ 
+-    return Bunch(data=data, target=target)
++    if return_X_y:
++        return data, target
++    else:
++        return Bunch(data=data, target=target)
+ 
+ 
+ def _fetch_brute_kddcup99(data_home=None,
+diff --git a/sklearn/datasets/mldata.py b/sklearn/datasets/mldata.py
+index 141620858..1e971fa47 100644
+--- a/sklearn/datasets/mldata.py
++++ b/sklearn/datasets/mldata.py
+@@ -47,7 +47,7 @@ def mldata_filename(dataname):
+ 
+ 
+ def fetch_mldata(dataname, target_name='label', data_name='data',
+-                 transpose_data=True, data_home=None):
++                 transpose_data=True, data_home=None, return_X_y=False):
+     """Fetch an mldata.org data set
+ 
+     If the file does not exist yet, it is downloaded from mldata.org .
+@@ -91,14 +91,18 @@ def fetch_mldata(dataname, target_name='label', data_name='data',
+         Specify another download and cache folder for the data sets. By default
+         all scikit-learn data is stored in '~/scikit_learn_data' subfolders.
+ 
++    return_X_y : boolean, default: False.
++        If True, returns (data, target) instead of a Bunch object.
++
+     Returns
+     -------
+ 
+-    data : Bunch
++    data : Bunch or tuple
+         Dictionary-like object, the interesting attributes are:
+         'data', the data to learn, 'target', the classification labels,
+         'DESCR', the full description of the dataset, and
+         'COL_NAMES', the original names of the dataset columns.
++        If return_X_y is True, returns (data, target) instead.
+ 
+     Examples
+     --------
+@@ -154,13 +158,18 @@ def fetch_mldata(dataname, target_name='label', data_name='data',
+             mldata_url = urlopen(urlname)
+         except HTTPError as e:
+             if e.code == 404:
+-                e.msg = "Dataset '%s' not found on mldata.org." % dataname
+-            raise
++                raise HTTPError(
++                    urlname, e.code,
++                    "Dataset '%s' not found on mldata.org." % dataname,
++                    e.hdrs, e.fp
++                )
++            else:
++                raise
+         # store Matlab file
+         try:
+             with open(filename, 'w+b') as matlab_file:
+                 copyfileobj(mldata_url, matlab_file)
+-        except:
++        except IOError:
+             os.remove(filename)
+             raise
+         mldata_url.close()
+@@ -170,7 +179,6 @@ def fetch_mldata(dataname, target_name='label', data_name='data',
+         matlab_dict = io.loadmat(matlab_file, struct_as_record=True)
+ 
+     # -- extract data from matlab_dict
+-
+     # flatten column names
+     col_names = [str(descr[0])
+                  for descr in matlab_dict['mldata_descr_ordering'][0]]
+@@ -224,7 +232,10 @@ def fetch_mldata(dataname, target_name='label', data_name='data',
+         if not sp.sparse.issparse(dataset['target']):
+             dataset['target'] = dataset['target'].squeeze()
+ 
+-    return Bunch(**dataset)
++    if return_X_y:
++        return dataset['data'], dataset['target']
++    else:
++        return Bunch(**dataset)
+ 
+ 
+ # The following is used by test runners to setup the docstring tests fixture

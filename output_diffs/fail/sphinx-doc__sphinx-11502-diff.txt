@@ -1,0 +1,58 @@
+diff --git a/sphinx/transforms/i18n.py b/sphinx/transforms/i18n.py
+index 719f0631d..2cab29d37 100644
+--- a/sphinx/transforms/i18n.py
++++ b/sphinx/transforms/i18n.py
+@@ -30,7 +30,7 @@ from sphinx.util.nodes import (
+ if TYPE_CHECKING:
+     from sphinx.application import Sphinx
+ 
+-
++logging.basicConfig(level=logging.INFO, format='%(message)s')
+ logger = logging.getLogger(__name__)
+ 
+ # The attributes not copied to the translated node
+@@ -403,7 +403,9 @@ class Locale(SphinxTransform):
+             # update leaves with processed nodes
+             if processed:
+                 updater.update_leaves()
++                logger.info(f"Setting 'translated' attribute to True on node: {node}")
+                 node['translated'] = True  # to avoid double translation
++                logger.info(f"'translated' attribute set to True on node: {node}")
+ 
+         # phase2: translation
+         for node, msg in extract_messages(self.document):
+@@ -492,7 +494,9 @@ class Locale(SphinxTransform):
+                 node['uri'] = patch['uri']
+                 continue  # do not mark translated
+ 
++            logger.info(f"Setting 'translated' attribute to True on node: {node}")
+             node['translated'] = True  # to avoid double translation
++            logger.info(f"'translated' attribute set to True on node: {node}")
+ 
+         if 'index' in self.config.gettext_additional_targets:
+             # Extract and translate messages for index entries.
+@@ -512,11 +516,6 @@ class Locale(SphinxTransform):
+                 node['raw_entries'] = entries
+                 node['entries'] = new_entries
+ 
+-        # remove translated attribute that is used for avoiding double translation.
+-        matcher = NodeMatcher(translated=Any)
+-        for translated in self.document.findall(matcher):  # type: nodes.Element
+-            translated.delattr('translated')
+-
+ 
+ class RemoveTranslatableInline(SphinxTransform):
+     """
+diff --git a/tox.ini b/tox.ini
+index 512aa5f74..84c8093a3 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -24,7 +24,7 @@ setenv =
+     PYTHONWARNINGS = error
+     PYTEST_ADDOPTS = {env:PYTEST_ADDOPTS:} --color yes
+ commands=
+-    python -X dev -X warn_default_encoding -m pytest --durations 25 {posargs}
++    python -X dev -X warn_default_encoding -m pytest -rA --durations 25 {posargs}
+ 
+ [testenv:docs]
+ basepython = python3

@@ -1,0 +1,23 @@
+diff --git a/sympy/printing/ccode.py b/sympy/printing/ccode.py
+index 30a07a7b59..df04c5a801 100644
+--- a/sympy/printing/ccode.py
++++ b/sympy/printing/ccode.py
+@@ -43,6 +43,7 @@
+     "atanh": "atanh",
+     "floor": "floor",
+     "ceiling": "ceil",
++    "sinc": "_print_sinc",
+ }
+ 
+ # These are the core reserved words in the C language. Taken from:
+@@ -251,6 +252,10 @@ def _print_For(self, expr):
+     def _print_sign(self, func):
+         return '((({0}) > 0) - (({0}) < 0))'.format(self._print(func.args[0]))
+ 
++    def _print_sinc(self, expr):
++        x = expr.args[0]
++        return "((%(x)s == 0) ? 1 : sin(%(x)s)/(%(x)s))" % {'x': self._print(x)}
++
+     def indent_code(self, code):
+         """Accepts a string of code or a list of code lines"""
+ 

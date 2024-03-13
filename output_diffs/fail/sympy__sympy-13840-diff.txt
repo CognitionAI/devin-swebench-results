@@ -1,0 +1,35 @@
+diff --git a/sympy/printing/jscode.py b/sympy/printing/jscode.py
+index 621784424e..701fa934ba 100644
+--- a/sympy/printing/jscode.py
++++ b/sympy/printing/jscode.py
+@@ -14,6 +14,7 @@
+ from sympy.printing.codeprinter import CodePrinter
+ from sympy.printing.precedence import precedence, PRECEDENCE
+ from sympy.core.compatibility import string_types, range
++from sympy.codegen.jsfunctions import js_max, js_min
+ 
+ 
+ # dictionary mapping sympy function to (argument_conditions, Javascript_function).
+@@ -62,6 +63,9 @@ def __init__(self, settings={}):
+         CodePrinter.__init__(self, settings)
+         self.known_functions = dict(known_functions)
+         userfuncs = settings.get('user_functions', {})
++        # Add custom js_max and js_min functions to the known functions
++        userfuncs[js_max] = 'Math.max'
++        userfuncs[js_min] = 'Math.min'
+         self.known_functions.update(userfuncs)
+ 
+     def _rate_index_position(self, p):
+diff --git a/sympy/printing/rcode.py b/sympy/printing/rcode.py
+index 0e56f1b108..6895e83a30 100644
+--- a/sympy/printing/rcode.py
++++ b/sympy/printing/rcode.py
+@@ -42,6 +42,8 @@
+     "floor": "floor",
+     "ceiling": "ceiling",
+     "sign": "sign",
++    'r_max': 'max',
++    'r_min': 'min',
+ }
+ 
+ # These are the core reserved words in the R language. Taken from:

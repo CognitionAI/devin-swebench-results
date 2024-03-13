@@ -1,0 +1,39 @@
+diff --git a/sklearn/preprocessing/_encoders.py b/sklearn/preprocessing/_encoders.py
+index 4bd11012b..0d5fba14b 100644
+--- a/sklearn/preprocessing/_encoders.py
++++ b/sklearn/preprocessing/_encoders.py
+@@ -639,6 +639,34 @@ class OneHotEncoder(_BaseEncoder):
+ 
+         return X_tr
+ 
++    def get_feature_names(self, input_features=None):
++        """
++        Return feature names for output features.
++
++        Parameters
++        ----------
++        input_features : array-like of str or None, default=None
++            String names for the input features if available. By default, "x0", "x1", ...
++            is used.
++
++        Returns
++        -------
++        output_feature_names : array of str
++            Array of feature names for the output of the transform.
++        """
++        check_is_fitted(self, 'categories_')
++        cats = self.categories_
++        if input_features is None:
++            input_features = ['x%d' % i for i in range(len(cats))]
++        feature_names = []
++        for i in range(len(cats)):
++            names = [
++                input_features[i] + "_" + str(t) for t in cats[i]
++            ]
++            feature_names.extend(names)
++
++        return feature_names
++
+ 
+ class OrdinalEncoder(_BaseEncoder):
+     """Encode categorical features as an integer array.

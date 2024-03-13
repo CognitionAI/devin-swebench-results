@@ -1,0 +1,61 @@
+diff --git a/sphinx/ext/autodoc/typehints.py b/sphinx/ext/autodoc/typehints.py
+index f4b4dd35e..a80fff734 100644
+--- a/sphinx/ext/autodoc/typehints.py
++++ b/sphinx/ext/autodoc/typehints.py
+@@ -43,17 +43,26 @@ def merge_typehints(app: Sphinx, domain: str, objtype: str, contentnode: Element
+     if app.config.autodoc_typehints not in ('both', 'description'):
+         return
+ 
+-    try:
++    # Ensure app.env is initialized and has temp_data
++    if app.env is not None and hasattr(app.env, 'temp_data'):
++        annotations = app.env.temp_data.get('annotations', {})
++    else:
++        annotations = {}
++
++    if not isinstance(contentnode, (nodes.field_list, nodes.enumerated_list, nodes.bullet_list)):
++        return
++
++    # Safely access the first element of contentnode.parent if it's a list
++    if isinstance(contentnode.parent, list) and len(contentnode.parent) > 0:
+         signature = cast(addnodes.desc_signature, contentnode.parent[0])
+         if signature['module']:
+             fullname = '.'.join([signature['module'], signature['fullname']])
+         else:
+             fullname = signature['fullname']
+-    except KeyError:
++    else:
+         # signature node does not have valid context info for the target object
+         return
+ 
+-    annotations = app.env.temp_data.get('annotations', {})
+     if annotations.get(fullname, {}):
+         field_lists = [n for n in contentnode if isinstance(n, nodes.field_list)]
+         if field_lists == []:
+@@ -65,6 +74,17 @@ def merge_typehints(app: Sphinx, domain: str, objtype: str, contentnode: Element
+                 modify_field_list(field_list, annotations[fullname])
+             else:
+                 augment_descriptions_with_types(field_list, annotations[fullname])
++                # Ensure that Literal types are not flagged as missing references
++                for field in field_list:
++                    field_name = field[0].astext()
++                    if "type " in field_name:
++                        field_body = field[1].astext()
++                        if "Literal" in field_body:
++                            # Replace "Literal" with the appropriate role
++                            new_field_body = field_body.replace(
++                                "Literal", ":py:data:`typing.Literal`"
++                            )
++                            field[1] = nodes.paragraph('', new_field_body)
+ 
+ 
+ def insert_field_list(node: Element) -> nodes.field_list:
+@@ -123,7 +143,7 @@ def modify_field_list(node: nodes.field_list, annotations: Dict[str, str]) -> No
+     if 'return' in annotations and 'return' not in arguments:
+         field = nodes.field()
+         field += nodes.field_name('', 'rtype')
+-        field += nodes.field_body('', nodes.paragraph('', annotation))
++        field += nodes.field_body('', nodes.paragraph('', annotations['return']))
+         node += field
+ 
+ 

@@ -1,0 +1,57 @@
+diff --git a/sympy/sets/sets.py b/sympy/sets/sets.py
+index 6b63adbe6c..8891210002 100644
+--- a/sympy/sets/sets.py
++++ b/sympy/sets/sets.py
+@@ -663,7 +663,12 @@ def _measure(self):
+         return measure
+ 
+     def __len__(self):
+-        return Mul(*[len(s) for s in self.args])
++        if any(s.is_infinite for s in self.args):
++            raise ValueError("Cannot compute the length of an infinite set.")
++        try:
++            return Mul(*[len(s) for s in self.args])
++        except TypeError:
++            raise ValueError("Cannot compute the length of an infinite set.")
+ 
+ 
+ class Interval(Set, EvalfMixin):
+@@ -1174,6 +1179,10 @@ def flatten(arg):
+         if len(args) == 0:
+             return S.EmptySet
+ 
++        # args can't be ordered for Partition see issue #9608
++        if 'Partition' not in [type(a).__name__ for a in args]:
++            args = list(ordered(args, Set._infimum_key))
++
+         # Reduce sets using known rules
+         if evaluate:
+             return Union.reduce(args)
+@@ -1497,9 +1506,9 @@ def _handle_finite_sets(args):
+                     else:
+                         pass  # for coverage
+ 
+-            other_sets = Intersection(*other)
+-            if not other_sets:
+-                return S.EmptySet  # b/c we use evaluate=False below
++            other_sets = Intersection(*other, evaluate=False)
++            if other_sets == S.EmptySet:
++                return S.EmptySet
+             res += Intersection(
+                 FiniteSet(*unk),
+                 other_sets, evaluate=False)
+@@ -1574,6 +1583,14 @@ def as_relational(self, symbol):
+         """Rewrite an Intersection in terms of equalities and logic operators"""
+         return And(*[set.as_relational(symbol) for set in self.args])
+ 
++    def __len__(self):
++        if any(s.is_infinite for s in self.args):
++            raise ValueError("Cannot compute the length of an infinite set.")
++        try:
++            return Mul(*[len(s) for s in self.args])
++        except TypeError:
++            raise ValueError("Cannot compute the length of an infinite set.")
++
+ 
+ class Complement(Set, EvalfMixin):
+     """Represents the set difference or relative complement of a set with

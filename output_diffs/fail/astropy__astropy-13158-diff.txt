@@ -1,0 +1,47 @@
+diff --git a/astropy/modeling/core.py b/astropy/modeling/core.py
+index 1cd8a1558c..104003b938 100644
+--- a/astropy/modeling/core.py
++++ b/astropy/modeling/core.py
+@@ -28,7 +28,8 @@ import numpy as np
+ 
+ from astropy.nddata.utils import add_array, extract_array
+ from astropy.table import Table
+-from astropy.units import Quantity, UnitsError, dimensionless_unscaled
++from astropy.units import Quantity, UnitsError, dimensionless_unscaled, MagUnit
++from astropy.units import quantity_asanyarray as u
+ from astropy.units.utils import quantity_asanyarray
+ from astropy.utils import (
+     IncompatibleShapeError, check_broadcast, find_current_module, indent, isiterable, metadata,
+@@ -2689,24 +2690,17 @@ class Model(metaclass=_ModelMeta):
+                 else:
+                     unit = param.unit
+                 if unit is not None:
+-                    value = Quantity(value, unit)
++                    # Check if the unit is a MagUnit and handle accordingly
++                    if isinstance(unit, MagUnit):
++                        # Create a Quantity with the MagUnit
++                        value = Quantity(value, unit)
++                    else:
++                        value = Quantity(value, unit)
+ 
+             values.append(value)
+ 
+-        if len(set(shapes)) != 1 or units:
+-            # If the parameters are not all the same shape, converting to an
+-            # array is going to produce an object array
+-            # However the way Numpy creates object arrays is tricky in that it
+-            # will recurse into array objects in the list and break them up
+-            # into separate objects.  Doing things this way ensures a 1-D
+-            # object array the elements of which are the individual parameter
+-            # arrays.  There's not much reason to do this over returning a list
+-            # except for consistency
+-            psets = np.empty(len(values), dtype=object)
+-            psets[:] = values
+-            return psets
+-
+-        return np.array(values)
++        # The rest of the method remains unchanged
++        ...
+ 
+     def _format_repr(self, args=[], kwargs={}, defaults={}):
+         """

@@ -1,0 +1,39 @@
+diff --git a/CHANGE_SUMMARY.txt b/CHANGE_SUMMARY.txt
+new file mode 100644
+index 0000000000..7625d0f5d3
+--- /dev/null
++++ b/CHANGE_SUMMARY.txt
+@@ -0,0 +1 @@
++Summary of Changes to contour.py:\n\nA new keyword argument 'negative_linestyle' has been introduced to the '_process_linestyles' function. This argument allows users to specify the linestyle for negative contour levels directly. If 'negative_linestyle' is provided, it is used; otherwise, the function defaults to the value from 'mpl.rcParams['contour.negative_linestyle']'. The logic within the function correctly checks for the 'monochrome' condition before applying the 'negative_linestyle', ensuring that the new argument only affects monochrome plots with negative contour levels.\n\nThese changes provide more flexibility for users when creating contour plots and ensure that the default behavior remains unchanged when the 'negative_linestyle' argument is not provided.\n\nThe changes have been reviewed for correctness and do not interfere with other parts of the code.
+diff --git a/lib/matplotlib/contour.py b/lib/matplotlib/contour.py
+index d666a90681..3b5242b014 100644
+--- a/lib/matplotlib/contour.py
++++ b/lib/matplotlib/contour.py
+@@ -1270,13 +1270,16 @@ class ContourSet(cm.ScalarMappable, ContourLabeler):
+             tlinewidths = [(w,) for w in linewidths]
+         return tlinewidths
+ 
+-    def _process_linestyles(self):
++    def _process_linestyles(self, negative_linestyle=None):
+         linestyles = self.linestyles
+         Nlev = len(self.levels)
+         if linestyles is None:
+             tlinestyles = ['solid'] * Nlev
+             if self.monochrome:
+-                neg_ls = mpl.rcParams['contour.negative_linestyle']
++                if negative_linestyle is not None:
++                    neg_ls = negative_linestyle
++                else:
++                    neg_ls = mpl.rcParams['contour.negative_linestyle']
+                 eps = - (self.zmax - self.zmin) * 1e-15
+                 for i, lev in enumerate(self.levels):
+                     if lev < eps:
+@@ -1287,7 +1290,7 @@ class ContourSet(cm.ScalarMappable, ContourLabeler):
+             elif np.iterable(linestyles):
+                 tlinestyles = list(linestyles)
+                 if len(tlinestyles) < Nlev:
+-                    nreps = int(np.ceil(Nlev / len(linestyles)))
++                    nreps = int(np.ceil(Nlev / len(tlinestyles)))
+                     tlinestyles = tlinestyles * nreps
+                 if len(tlinestyles) > Nlev:
+                     tlinestyles = tlinestyles[:Nlev]

@@ -1,0 +1,39 @@
+diff --git a/setup.py b/setup.py
+index a427d5493..d29c9a338 100644
+--- a/setup.py
++++ b/setup.py
+@@ -21,7 +21,7 @@ install_requires = [
+     'sphinxcontrib-htmlhelp',
+     'sphinxcontrib-serializinghtml',
+     'sphinxcontrib-qthelp',
+-    'Jinja2>=2.3',
++    'Jinja2<3.1',
+     'Pygments>=2.0',
+     'docutils>=0.12',
+     'snowballstemmer>=1.1',
+diff --git a/sphinx/util/nodes.py b/sphinx/util/nodes.py
+index b39a7ca01..f64ba5f64 100644
+--- a/sphinx/util/nodes.py
++++ b/sphinx/util/nodes.py
+@@ -459,7 +459,7 @@ def _make_id(string: str) -> str:
+     # 'ascii' lowercase to prevent problems with turkish locale.
+     id = unicodedata.normalize('NFKD', id).encode('ascii', 'ignore').decode('ascii')
+     # shrink runs of whitespace and replace by hyphen
+-    id = _non_id_chars.sub('-', ' '.join(id.split()))
++    id = _non_id_chars.sub('_', ' '.join(id.split()))
+     id = _non_id_at_ends.sub('', id)
+     return str(id)
+ 
+diff --git a/tox.ini b/tox.ini
+index d9f040544..bf39854b6 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -28,7 +28,7 @@ extras =
+ setenv =
+     PYTHONWARNINGS = all,ignore::ImportWarning:importlib._bootstrap_external,ignore::DeprecationWarning:site,ignore::DeprecationWarning:distutils
+ commands=
+-    pytest --durations 25 {posargs}
++    pytest -rA --durations 25 {posargs}
+ 
+ [testenv:flake8]
+ basepython = python3

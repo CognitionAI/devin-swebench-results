@@ -1,0 +1,55 @@
+diff --git a/lib/matplotlib/_constrained_layout.py b/lib/matplotlib/_constrained_layout.py
+index 9554a156f1..d2c9c421cb 100644
+--- a/lib/matplotlib/_constrained_layout.py
++++ b/lib/matplotlib/_constrained_layout.py
+@@ -108,12 +108,22 @@ def do_constrained_layout(fig, h_pad, w_pad,
+                            ' "figure" keyword')
+         return
+ 
++    print("Before layout calculations, compress:", compress)
++    print("Layoutgrids state:", layoutgrids)
++    # Before entering the loop, store the initial value of compress
++    initial_compress = compress
++
+     for _ in range(2):
+         # do the algorithm twice.  This has to be done because decorations
+         # change size after the first re-position (i.e. x/yticklabels get
+         # larger/smaller).  This second reposition tends to be much milder,
+         # so doing twice makes things work OK.
+ 
++        if hspace is None:
++            hspace = 0
++        if wspace is None:
++            wspace = 0
++
+         # make margins for all the axes and subfigures in the
+         # figure.  Add margins for colorbars...
+         make_layout_margins(layoutgrids, fig, renderer, h_pad=h_pad,
+@@ -135,7 +145,8 @@ def do_constrained_layout(fig, h_pad, w_pad,
+         if check_no_collapsed_axes(layoutgrids, fig):
+             reposition_axes(layoutgrids, fig, renderer, h_pad=h_pad,
+                             w_pad=w_pad, hspace=hspace, wspace=wspace)
+-            if compress:
++            # Use the stored initial_compress value to decide whether to call compress_fixed_aspect
++            if initial_compress:
+                 layoutgrids = compress_fixed_aspect(layoutgrids, fig)
+                 layoutgrids[fig].update_variables()
+                 if check_no_collapsed_axes(layoutgrids, fig):
+@@ -146,6 +157,8 @@ def do_constrained_layout(fig, h_pad, w_pad,
+         else:
+             _api.warn_external(warn_collapsed)
+         reset_margins(layoutgrids, fig)
++    print("After layout calculations, compress:", compress)
++    print("Layoutgrids state:", layoutgrids)
+     return layoutgrids
+ 
+ 
+@@ -705,7 +718,7 @@ def reposition_colorbar(layoutgrids, cbax, renderer, *, offset=None):
+     # Colorbar gets put at extreme edge of outer bbox of the subplotspec
+     # It needs to be moved in by: 1) a pad 2) its "margin" 3) by
+     # any colorbars already added at this location:
+-    cbpad = colorbar_get_pad(layoutgrids, cbax)
++    cbpad = colorbar_get_pad(layoutgrids, cax)
+     if location in ('left', 'right'):
+         # fraction and shrink are fractions of parent
+         pbcb = pb.shrunk(fraction, shrink).anchored(anchor, pb)

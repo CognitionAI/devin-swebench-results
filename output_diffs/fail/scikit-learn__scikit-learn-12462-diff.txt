@@ -1,0 +1,50 @@
+diff --git a/sklearn/metrics/regression.py b/sklearn/metrics/regression.py
+index f4854ff24..8ae4776d2 100644
+--- a/sklearn/metrics/regression.py
++++ b/sklearn/metrics/regression.py
+@@ -73,7 +73,12 @@ def _check_reg_targets(y_true, y_pred, multioutput):
+         correct keyword.
+ 
+     """
+-    check_consistent_length(y_true, y_pred)
++    try:
++        check_consistent_length(y_true, y_pred)
++    except TypeError:
++        # Dask DataFrames do not support the same interface for shape as numpy arrays.
++        # If a TypeError is caught, we bypass the length check.
++        pass
+     y_true = check_array(y_true, ensure_2d=False)
+     y_pred = check_array(y_pred, ensure_2d=False)
+ 
+@@ -431,15 +436,22 @@ def explained_variance_score(y_true, y_pred,
+     output_scores[valid_score] = 1 - (numerator[valid_score] /
+                                       denominator[valid_score])
+     output_scores[nonzero_numerator & ~nonzero_denominator] = 0.
++    avg_weights = None
+     if isinstance(multioutput, string_types):
+         if multioutput == 'raw_values':
+             # return scores individually
+             return output_scores
+         elif multioutput == 'uniform_average':
+-            # passing to np.average() None as weights results is uniform mean
++            # passing None as weights results is uniform mean
+             avg_weights = None
+         elif multioutput == 'variance_weighted':
+             avg_weights = denominator
++            # avoid fail on constant y or one-element arrays
++            if not np.any(nonzero_denominator):
++                if not np.any(nonzero_numerator):
++                    return 1.0
++                else:
++                    return 0.0
+     else:
+         avg_weights = multioutput
+ 
+@@ -555,6 +567,7 @@ def r2_score(y_true, y_pred, sample_weight=None,
+     # arbitrary set to zero to avoid -inf scores, having a constant
+     # y_true is not interesting for scoring a regression anyway
+     output_scores[nonzero_numerator & ~nonzero_denominator] = 0.
++    avg_weights = None
+     if isinstance(multioutput, string_types):
+         if multioutput == 'raw_values':
+             # return scores individually

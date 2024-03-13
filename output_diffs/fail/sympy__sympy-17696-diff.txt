@@ -1,0 +1,63 @@
+diff --git a/sympy/assumptions/handlers/order.py b/sympy/assumptions/handlers/order.py
+index 4b3366bd20..a2ebd7794c 100644
+--- a/sympy/assumptions/handlers/order.py
++++ b/sympy/assumptions/handlers/order.py
+@@ -268,6 +268,13 @@ def Add(expr, assumptions):
+         if expr.is_number:
+             return AskPositiveHandler._number(expr, assumptions)
+ 
++        print(f"Checking positivity for expression: {expr}")
++        print(f"Assumptions: {assumptions}")
++        positive_check = ask(Q.positive(expr), assumptions)
++        print(f"Result of positive check: {positive_check}")
++        if positive_check:
++            return True
++
+         r = ask(Q.real(expr), assumptions)
+         if r is not True:
+             return r
+diff --git a/sympy/assumptions/refine.py b/sympy/assumptions/refine.py
+index 1dc3b5e1dd..2d0adacc88 100644
+--- a/sympy/assumptions/refine.py
++++ b/sympy/assumptions/refine.py
+@@ -290,6 +290,32 @@ def _refine_reim(expr, assumptions):
+     # Best to leave the expression as is
+     return None
+ 
++def refine_sign(expr, assumptions):
++    """
++    Handler for the sign function.
++
++    Examples
++    ========
++
++    >>> from sympy import Symbol, Q, refine, sign
++    >>> from sympy.assumptions.refine import refine_sign
++    >>> from sympy.abc import x
++    >>> refine_sign(sign(x), Q.positive(x) & Q.nonzero(x))
++    1
++    >>> refine_sign(sign(x), Q.positive(x + 1))
++    1
++    """
++    from sympy.core.logic import fuzzy_not
++    from sympy.functions.elementary.complexes import sign
++    arg = expr.args[0]
++    print(f"Refining sign for arg: {arg}, with assumptions: {assumptions}")
++    if ask(Q.positive(arg), assumptions) and fuzzy_not(ask(Q.zero(arg), assumptions)):
++        print("Argument is positive and not zero")
++        return S.One
++    if arg.is_Add and ask(Q.positive(arg), assumptions):
++        return S.One
++    print("No conditions met, returning original expression")
++    return expr
+ 
+ handlers_dict = {
+     'Abs': refine_abs,
+@@ -302,5 +328,6 @@ def _refine_reim(expr, assumptions):
+     'StrictGreaterThan': refine_Relational,
+     'StrictLessThan': refine_Relational,
+     're': refine_re,
+-    'im': refine_im
++    'im': refine_im,
++    'sign': refine_sign
+ }

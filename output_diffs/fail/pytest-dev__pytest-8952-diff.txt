@@ -1,0 +1,32 @@
+diff --git a/src/_pytest/pytester.py b/src/_pytest/pytester.py
+index af73b6392..bf98461cb 100644
+--- a/src/_pytest/pytester.py
++++ b/src/_pytest/pytester.py
+@@ -604,7 +604,15 @@ class RunResult:
+             xpassed=xpassed,
+             xfailed=xfailed,
+         )
++def assert_warnings(self, count: int) -> None:
++    """Assert that the specified number of warnings occurred.
+ 
++    :param count: Expected number of warnings.
++    """
++    __tracebackhide__ = True
++    outcomes = self.parseoutcomes()
++    actual_count = outcomes.get("warnings", 0)
++    assert actual_count == count, f"Expected {count} warnings, got {actual_count}"
+ 
+ class CwdSnapshot:
+     def __init__(self) -> None:
+diff --git a/testing/test_pytester.py b/testing/test_pytester.py
+index 7b16c69c2..7275ecb73 100644
+--- a/testing/test_pytester.py
++++ b/testing/test_pytester.py
+@@ -131,6 +131,7 @@ def test_runresult_assertion_on_xfail(pytester: Pytester) -> None:
+     result = pytester.runpytest()
+     result.assert_outcomes(xfailed=1)
+     assert result.ret == 0
++    result.assert_warnings(count=0)  # Assuming no warnings are expected in this test
+ 
+ 
+ def test_runresult_assertion_on_xpassed(pytester: Pytester) -> None:

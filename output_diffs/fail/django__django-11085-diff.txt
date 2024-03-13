@@ -1,0 +1,23 @@
+diff --git a/django/db/models/base.py b/django/db/models/base.py
+index 2884679ba1..5be52aec01 100644
+--- a/django/db/models/base.py
++++ b/django/db/models/base.py
+@@ -86,9 +86,17 @@ class ModelBase(type):
+         # (i.e. __set_name__()).
+         for obj_name, obj in list(attrs.items()):
+             if not _has_contribute_to_class(obj):
+-                new_attrs[obj_name] = attrs.pop(obj_name)
++                # Temporarily preserve the attribute in the original attrs
++                # so that it's available during the __init__ of custom metaclasses.
++                # new_attrs[obj_name] = attrs.pop(obj_name)
++                pass
+         new_class = super_new(cls, name, bases, new_attrs, **kwargs)
+ 
++        # Remove attributes that were temporarily preserved.
++        for obj_name in list(attrs.keys()):
++            if not _has_contribute_to_class(attrs[obj_name]):
++                attrs.pop(obj_name)
++
+         abstract = getattr(attr_meta, 'abstract', False)
+         meta = attr_meta or getattr(new_class, 'Meta', None)
+         base_meta = getattr(new_class, '_meta', None)

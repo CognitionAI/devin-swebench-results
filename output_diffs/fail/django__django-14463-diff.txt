@@ -1,0 +1,136 @@
+diff --git a/django/db/backends/postgresql/psycopg_any.py b/django/db/backends/postgresql/psycopg_any.py
+index 579104dead..35c0a6916a 100644
+--- a/django/db/backends/postgresql/psycopg_any.py
++++ b/django/db/backends/postgresql/psycopg_any.py
+@@ -26,7 +26,6 @@ try:
+         Load a PostgreSQL timestamptz using the a specific timezone.
+         The timezone can be None too, in which case it will be chopped.
+         """
+-
+         timezone = None
+ 
+         def load(self, data):
+@@ -70,6 +69,23 @@ try:
+ 
+     is_psycopg3 = True
+ 
++    class CommentOnTable:
++        def __init__(self, table_name, comment):
++            self.table_name = table_name
++            self.comment = comment
++
++        def __str__(self):
++            return "COMMENT ON TABLE %s IS %s" % (self.table_name, sql.Literal(self.comment))
++
++    class CommentOnColumn:
++        def __init__(self, table_name, column_name, comment):
++            self.table_name = table_name
++            self.column_name = column_name
++            self.comment = comment
++
++        def __str__(self):
++            return "COMMENT ON COLUMN %s.%s IS %s" % (self.table_name, self.column_name, sql.Literal(self.comment))
++
+ except ImportError:
+     from enum import IntEnum
+ 
+diff --git a/django/db/backends/postgresql/schema.py b/django/db/backends/postgresql/schema.py
+index 2887071254..e60398bd9b 100644
+--- a/django/db/backends/postgresql/schema.py
++++ b/django/db/backends/postgresql/schema.py
+@@ -1,19 +1,38 @@
+-from django.db.backends.base.schema import BaseDatabaseSchemaEditor
+-from django.db.backends.ddl_references import IndexColumns
+-from django.db.backends.postgresql.psycopg_any import sql
+ from django.db.backends.utils import strip_quotes
++from django.db.backends.ddl_references import IndexColumns
+ 
++def create_model(self, model):
++    """
++    Take a model and create a table for it in the database.
++    Will also create any accompanying indexes or unique constraints.
++    """
++    columns = [
++        self.column_sql(model, field)
++        for field in model._meta.local_fields
++    ]
++    columns = [col for col in columns if col is not None]
++    constraints = [
++        *self._unique_sql(model),
++        *self._check_sql(model),
++        *self._fk_sql(model),
++        *self._index_sql(model),
++    ]
++    sql = self.sql_create_table % {
++        "table": self.quote_name(model._meta.db_table),
++        "definition": ", ".join(columns + constraints),
++    }
++    self.execute(sql)
+ 
+-class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
++    # Add any table comments
++    if hasattr(model._meta, 'db_table_comment'):
++        comment_sql = self.add_table_comment(model._meta.db_table, model._meta.db_table_comment)
++        self.execute(comment_sql)
+ 
+-    # Setting all constraints to IMMEDIATE to allow changing data in the same
+-    # transaction.
+-    sql_update_with_default = (
+-        "UPDATE %(table)s SET %(column)s = %(default)s WHERE %(column)s IS NULL"
+-        "; SET CONSTRAINTS ALL IMMEDIATE"
+-    )
+-    sql_alter_sequence_type = "ALTER SEQUENCE IF EXISTS %(sequence)s AS %(type)s"
+-    sql_delete_sequence = "DROP SEQUENCE IF EXISTS %(sequence)s CASCADE"
++    # Add any field-specific column comments
++    for field in model._meta.local_fields:
++        if hasattr(field, 'db_column_comment'):
++            comment_sql = self.add_column_comment(model._meta.db_table, field.column, field.db_column_comment)
++            self.execute(comment_sql)
+ 
+     sql_create_index = (
+         "CREATE INDEX %(name)s ON %(table)s%(using)s "
+@@ -373,3 +392,9 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
+             include=include,
+             expressions=expressions,
+         )
++
++    def add_table_comment(self, table_name, comment):
++        """
++        Generate the SQL to add a comment to the table.
++        """
++        return sql.CommentOnTable(table_name=table_name, comment=comment)
+diff --git a/django/db/models/options.py b/django/db/models/options.py
+index b6b8202802..d48e39381c 100644
+--- a/django/db/models/options.py
++++ b/django/db/models/options.py
+@@ -157,6 +157,11 @@ class Options:
+ 
+         self.default_related_name = None
+ 
++        # New attribute for table comment
++        self.db_table_comment = ''
++        # New attribute for column comments
++        self.db_column_comments = {}
++
+     @property
+     def label(self):
+         return "%s.%s" % (self.app_label, self.object_name)
+@@ -202,6 +207,9 @@ class Options:
+                     setattr(self, attr_name, getattr(self.meta, attr_name))
+                     self.original_attrs[attr_name] = getattr(self, attr_name)
+ 
++            if hasattr(self.meta, 'db_table_comment'):
++                self.db_table_comment = getattr(self.meta, 'db_table_comment')
++
+             self.unique_together = normalize_together(self.unique_together)
+             self.index_together = normalize_together(self.index_together)
+             if self.index_together:
+@@ -344,6 +352,8 @@ class Options:
+         else:
+             bisect.insort(self.local_fields, field)
+             self.setup_pk(field)
++        if hasattr(field, 'db_column_comment'):
++            self.db_column_comments[field.name] = getattr(field, 'db_column_comment')
+ 
+         # If the field being added is a relation to another known field,
+         # expire the cache on this field and the forward cache on the field

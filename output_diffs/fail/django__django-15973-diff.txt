@@ -1,0 +1,27 @@
+diff --git a/django/db/backends/base/schema.py b/django/db/backends/base/schema.py
+index 09785e8586..7d06984377 100644
+--- a/django/db/backends/base/schema.py
++++ b/django/db/backends/base/schema.py
+@@ -2,6 +2,7 @@ import logging
+ import operator
+ from datetime import datetime
+ 
++from django.apps import apps
+ from django.conf import settings
+ from django.db.backends.ddl_references import (
+     Columns,
+@@ -450,8 +451,12 @@ class BaseDatabaseSchemaEditor:
+ 
+         # Make M2M tables
+         for field in model._meta.local_many_to_many:
+-            if field.remote_field.through._meta.auto_created:
+-                self.create_model(field.remote_field.through)
++            if isinstance(field.remote_field.through, str):
++                through_model = apps.get_model(field.remote_field.through)
++            else:
++                through_model = field.remote_field.through
++            if through_model._meta.auto_created:
++                self.create_model(through_model)
+ 
+     def delete_model(self, model):
+         """Delete a model from the database."""

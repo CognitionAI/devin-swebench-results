@@ -1,0 +1,114 @@
+diff --git a/sklearn/utils/_pprint.py b/sklearn/utils/_pprint.py
+index b8686dba5..0821b66ed 100644
+--- a/sklearn/utils/_pprint.py
++++ b/sklearn/utils/_pprint.py
+@@ -212,7 +212,7 @@ class _EstimatorPrettyPrinter(pprint.PrettyPrinter):
+         indent += self._indent_per_level
+         delimnl = ',\n' + ' ' * indent
+         delim = ''
+-        width = max_width = self._width - indent + 1
++        width = max_width = self.width - indent + 1
+         it = iter(object)
+         try:
+             next_ent = next(it)
+@@ -232,7 +232,7 @@ class _EstimatorPrettyPrinter(pprint.PrettyPrinter):
+                 last = True
+                 max_width -= allowance
+                 width -= allowance
+-            if self._compact:
++            if self.compact:
+                 k, v = ent
+                 krepr = self._repr(k, context, level)
+                 vrepr = self._repr(v, context, level)
+@@ -268,7 +268,7 @@ class _EstimatorPrettyPrinter(pprint.PrettyPrinter):
+             write((self._indent_per_level - 1) * ' ')
+         delimnl = ',\n' + ' ' * indent
+         delim = ''
+-        width = max_width = self._width - indent + 1
++        width = max_width = self.width - indent + 1
+         it = iter(items)
+         try:
+             next_ent = next(it)
+@@ -288,7 +288,7 @@ class _EstimatorPrettyPrinter(pprint.PrettyPrinter):
+                 last = True
+                 max_width -= allowance
+                 width -= allowance
+-            if self._compact:
++            if self.compact:
+                 rep = self._repr(ent, context, level)
+                 w = len(rep) + 2
+                 if width < w:
+@@ -334,7 +334,7 @@ def _safe_repr(object, context, maxlevels, level, changed_only=False):
+     objects."""
+     typ = type(object)
+ 
+-    if typ in pprint._builtin_scalars:
++    if typ in (int, float, complex, str, bytes, bytearray, memoryview, bool, type(None)):
+         return repr(object), True, False
+ 
+     r = getattr(typ, "__repr__", None)
+@@ -345,7 +345,7 @@ def _safe_repr(object, context, maxlevels, level, changed_only=False):
+         if maxlevels and level >= maxlevels:
+             return "{...}", False, objid in context
+         if objid in context:
+-            return pprint._recursion(object), False, True
++            return "...", False, True  # replaced pprint._recursion with "..."
+         context[objid] = 1
+         readable = True
+         recursive = False
+@@ -353,7 +353,7 @@ def _safe_repr(object, context, maxlevels, level, changed_only=False):
+         append = components.append
+         level += 1
+         saferepr = _safe_repr
+-        items = sorted(object.items(), key=pprint._safe_tuple)
++        items = sorted(object.items(), key=lambda x: repr(x[0]))
+         for k, v in items:
+             krepr, kreadable, krecur = saferepr(
+                 k, context, maxlevels, level, changed_only=changed_only)
+@@ -382,7 +382,7 @@ def _safe_repr(object, context, maxlevels, level, changed_only=False):
+         if maxlevels and level >= maxlevels:
+             return format % "...", False, objid in context
+         if objid in context:
+-            return pprint._recursion(object), False, True
++            return "...", False, True  # replaced pprint._recursion with "..."
+         context[objid] = 1
+         readable = True
+         recursive = False
+@@ -405,7 +405,7 @@ def _safe_repr(object, context, maxlevels, level, changed_only=False):
+         if maxlevels and level >= maxlevels:
+             return "{...}", False, objid in context
+         if objid in context:
+-            return pprint._recursion(object), False, True
++            return "...", False, True  # replaced pprint._recursion with "..."
+         context[objid] = 1
+         readable = True
+         recursive = False
+@@ -417,13 +417,22 @@ def _safe_repr(object, context, maxlevels, level, changed_only=False):
+         append = components.append
+         level += 1
+         saferepr = _safe_repr
+-        items = sorted(params.items(), key=pprint._safe_tuple)
++        import numpy as np
++        items = sorted(params.items(), key=lambda x: repr(x[0]))
+         for k, v in items:
+-            krepr, kreadable, krecur = saferepr(
+-                k, context, maxlevels, level, changed_only=changed_only)
+-            vrepr, vreadable, vrecur = saferepr(
+-                v, context, maxlevels, level, changed_only=changed_only)
+-            append("%s=%s" % (krepr.strip("'"), vrepr))
++            if isinstance(v, np.ndarray):
++                vrepr = np.array2string(v, separator=', ')
++                krepr, kreadable, krecur = saferepr(
++                    k, context, maxlevels, level, changed_only=changed_only)
++                vreadable, vrecur = True, False
++            else:
++                krepr, kreadable, krecur = saferepr(
++                    k, context, maxlevels, level, changed_only=changed_only)
++                vrepr, vreadable, vrecur = saferepr(
++                    v, context, maxlevels, level, changed_only=changed_only)
++            if krepr is not None:
++                krepr = krepr.strip("'")
++            append("%s=%s" % (krepr, vrepr))
+             readable = readable and kreadable and vreadable
+             if krecur or vrecur:
+                 recursive = True

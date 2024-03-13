@@ -1,0 +1,50 @@
+diff --git a/django/contrib/flatpages/models.py b/django/contrib/flatpages/models.py
+index f2d66b1c69..71b68fe122 100644
+--- a/django/contrib/flatpages/models.py
++++ b/django/contrib/flatpages/models.py
+@@ -1,10 +1,9 @@
+ from django.contrib.sites.models import Site
+ from django.db import models
+-from django.urls import get_script_prefix
++from django.urls import reverse
+ from django.utils.encoding import iri_to_uri
+ from django.utils.translation import gettext_lazy as _
+ 
+-
+ class FlatPage(models.Model):
+     url = models.CharField(_('URL'), max_length=100, db_index=True)
+     title = models.CharField(_('title'), max_length=200)
+@@ -36,5 +35,6 @@ class FlatPage(models.Model):
+         return "%s -- %s" % (self.url, self.title)
+ 
+     def get_absolute_url(self):
+-        # Handle script prefix manually because we bypass reverse()
+-        return iri_to_uri(get_script_prefix().rstrip('/') + self.url)
++        # Using reverse() to ensure consistency with URL resolution
++        # Including the 'flatpage_root' prefix as defined in the project's urls.py
++        return reverse('flatpages:flatpage', kwargs={'url': self.url.lstrip('/')})
+diff --git a/tests/flatpages_tests/settings.py b/tests/flatpages_tests/settings.py
+index ad888f9d95..a11373215f 100644
+--- a/tests/flatpages_tests/settings.py
++++ b/tests/flatpages_tests/settings.py
+@@ -1,5 +1,20 @@
+ import os
+ 
++# FlatPages test settings
++
++# SECURITY WARNING: keep the secret key used in production secret!
++SECRET_KEY = 'temporary-key-for-testing-purposes-only'
++
++INSTALLED_APPS = [
++    'django.contrib.sites',
++    'django.contrib.flatpages',
++    'django.contrib.contenttypes',  # Added to resolve the RuntimeError
++    'django.contrib.auth',  # Added to resolve the RuntimeError for Permission model
++]
++
++# Corrected 'ROOT_URLCONF' to match the actual Python import path
++ROOT_URLCONF = 'tests.flatpages_tests.urls'
++
+ FLATPAGES_TEMPLATES = [{
+     'BACKEND': 'django.template.backends.django.DjangoTemplates',
+     'DIRS': [os.path.join(os.path.dirname(__file__), 'templates')],

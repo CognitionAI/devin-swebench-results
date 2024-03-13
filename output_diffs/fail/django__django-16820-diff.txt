@@ -1,0 +1,108 @@
+diff --git a/django/db/migrations/operations/models.py b/django/db/migrations/operations/models.py
+index b89b6b511b..781be1dca8 100644
+--- a/django/db/migrations/operations/models.py
++++ b/django/db/migrations/operations/models.py
+@@ -560,22 +560,16 @@ class AlterModelTableComment(ModelOptionOperation):
+ 
+ 
+ class AlterTogetherOptionOperation(ModelOptionOperation):
+-    option_name = None
++    option_name = "index_together"  # Set a sensible default or determine the appropriate value
+ 
+     def __init__(self, name, option_value):
+-        if option_value:
+-            option_value = set(normalize_together(option_value))
+-        setattr(self, self.option_name, option_value)
+         super().__init__(name)
+-
+-    @cached_property
+-    def option_value(self):
+-        return getattr(self, self.option_name)
++        self.option_value = option_value
+ 
+     def deconstruct(self):
+         kwargs = {
+             "name": self.name,
+-            self.option_name: self.option_value,
++            self.__class__.option_name: self.option_value,
+         }
+         return (self.__class__.__qualname__, [], kwargs)
+ 
+@@ -583,18 +577,18 @@ class AlterTogetherOptionOperation(ModelOptionOperation):
+         state.alter_model_options(
+             app_label,
+             self.name_lower,
+-            {self.option_name: self.option_value},
++            {self.__class__.option_name: self.option_value},
+         )
+ 
+     def database_forwards(self, app_label, schema_editor, from_state, to_state):
+         new_model = to_state.apps.get_model(app_label, self.name)
+         if self.allow_migrate_model(schema_editor.connection.alias, new_model):
+             old_model = from_state.apps.get_model(app_label, self.name)
+-            alter_together = getattr(schema_editor, "alter_%s" % self.option_name)
++            alter_together = getattr(schema_editor, "alter_%s" % self.__class__.option_name)
+             alter_together(
+                 new_model,
+-                getattr(old_model._meta, self.option_name, set()),
+-                getattr(new_model._meta, self.option_name, set()),
++                getattr(old_model._meta, self.__class__.option_name, set()),
++                getattr(new_model._meta, self.__class__.option_name, set()),
+             )
+ 
+     def database_backwards(self, app_label, schema_editor, from_state, to_state):
+@@ -608,14 +602,14 @@ class AlterTogetherOptionOperation(ModelOptionOperation):
+ 
+     def describe(self):
+         return "Alter %s for %s (%s constraint(s))" % (
+-            self.option_name,
++            self.__class__.option_name,
+             self.name,
+             len(self.option_value or ""),
+         )
+ 
+     @property
+     def migration_name_fragment(self):
+-        return "alter_%s_%s" % (self.name_lower, self.option_name)
++        return "alter_%s_%s" % (self.name_lower, self.__class__.option_name)
+ 
+     def can_reduce_through(self, operation, app_label):
+         return super().can_reduce_through(operation, app_label) or (
+@@ -930,11 +924,15 @@ class RenameIndex(IndexOperation):
+ 
+     @cached_property
+     def old_name_lower(self):
+-        return self.old_name.lower()
++        if self.old_name is not None:
++            return self.old_name.lower()
++        return None
+ 
+     @cached_property
+     def new_name_lower(self):
+-        return self.new_name.lower()
++        if self.new_name is not None:
++            return self.new_name.lower()
++        return None
+ 
+     def deconstruct(self):
+         kwargs = {
+@@ -1035,11 +1033,14 @@ class RenameIndex(IndexOperation):
+     def migration_name_fragment(self):
+         if self.old_name:
+             return "rename_%s_%s" % (self.old_name_lower, self.new_name_lower)
+-        return "rename_%s_%s_%s" % (
+-            self.model_name_lower,
+-            "_".join(self.old_fields),
+-            self.new_name_lower,
+-        )
++        if self.old_fields:
++            if self.old_fields is not None:
++                return "rename_%s_%s_%s" % (
++                    self.model_name_lower,
++                    "_".join(self.old_fields),
++                    self.new_name_lower,
++                )
++        return None
+ 
+     def reduce(self, operation, app_label):
+         if (

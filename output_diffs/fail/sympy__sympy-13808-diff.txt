@@ -1,0 +1,41 @@
+diff --git a/sympy/integrals/trigonometry.py b/sympy/integrals/trigonometry.py
+index 607e018524..942634a540 100644
+--- a/sympy/integrals/trigonometry.py
++++ b/sympy/integrals/trigonometry.py
+@@ -58,14 +58,35 @@ def trigintegrate(f, x, conds='piecewise'):
+     sympy.integrals.integrals.Integral
+     """
+     from sympy.integrals.integrals import integrate
+-    pat, a, n, m = _pat_sincos(x)
++    from sympy import Wild, S, cos, sin, tan, cot, sec, csc, log, pi, sqrt, I
++    from sympy.core.relational import Ne
++    from sympy.functions.elementary.complexes import im
++    from sympy.functions.elementary.piecewise import Piecewise
++    from sympy.simplify.simplify import simplify, trigsimp
++
++    a = Wild('a', exclude=[x])
++    pat = 1 / (a - cos(x))
++    M = f.match(pat)
+ 
++    if M is not None:
++        a_val = M[a]
++        if a_val > 1:
++            # Check for the special case where a > 1 to avoid incorrect substitution
++            return pi / sqrt((a_val - 1) * (a_val + 1))
++        else:
++            # Proceed with the general method if a is not greater than 1
++            return integrate(f, x)
++
++    # If the function does not match the pattern, proceed with the original trigintegrate method
++    pat, a, n, m = _pat_sincos(x)
+     f = f.rewrite('sincos')
+     M = f.match(pat)
+ 
+     if M is None:
+         return
+ 
++    # Original trigintegrate code follows...
++
+     n, m = M[n], M[m]
+     if n is S.Zero and m is S.Zero:
+         return x

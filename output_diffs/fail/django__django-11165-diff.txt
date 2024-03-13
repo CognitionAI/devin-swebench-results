@@ -1,0 +1,37 @@
+diff --git a/django/http/request.py b/django/http/request.py
+index 1e1cc6c397..bce2a9b144 100644
+--- a/django/http/request.py
++++ b/django/http/request.py
+@@ -363,10 +363,14 @@ class HttpHeaders(CaseInsensitiveMapping):
+ 
+     def __init__(self, environ):
+         headers = {}
++        self._underscore_headers = {}
+         for header, value in environ.items():
+             name = self.parse_header_name(header)
++            underscore_name = self.parse_header_name_to_underscore(header)
+             if name:
+                 headers[name] = value
++                if underscore_name:
++                    self._underscore_headers[underscore_name] = value
+         super().__init__(headers)
+ 
+     @classmethod
+@@ -377,6 +381,17 @@ class HttpHeaders(CaseInsensitiveMapping):
+             return None
+         return header.replace('_', '-').title()
+ 
++    @classmethod
++    def parse_header_name_to_underscore(cls, header):
++        if header.startswith(cls.HTTP_PREFIX):
++            header = header[len(cls.HTTP_PREFIX):]
++        elif header not in cls.UNPREFIXED_HEADERS:
++            return None
++        return header.replace('-', '_').lower()
++
++    def get_underscore_headers(self):
++        return self._underscore_headers
++
+ 
+ class QueryDict(MultiValueDict):
+     """

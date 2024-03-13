@@ -1,0 +1,25 @@
+diff --git a/sphinx/writers/latex.py b/sphinx/writers/latex.py
+index e90fc1fb6..a49262b27 100644
+--- a/sphinx/writers/latex.py
++++ b/sphinx/writers/latex.py
+@@ -1098,6 +1098,7 @@ class LaTeXTranslator(SphinxTranslator):
+ 
+     def depart_term(self, node: Element) -> None:
+         self.body.append(self.context.pop())
++        self.body.append('\\\\')  # Append a newline after the term
+         self.in_term -= 1
+ 
+     def visit_classifier(self, node: Element) -> None:
+diff --git a/tox.ini b/tox.ini
+index c006fa5a6..e51fa8598 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -28,7 +28,7 @@ setenv =
+     PYTHONWARNINGS = all,ignore::ImportWarning:importlib._bootstrap_external,ignore::DeprecationWarning:site,ignore::DeprecationWarning:distutils,ignore::DeprecationWarning:pip._vendor.packaging.version
+     PYTEST_ADDOPTS = {env:PYTEST_ADDOPTS:} --color yes
+ commands=
+-    python -X dev -m pytest --durations 25 {posargs}
++    python -X dev -m pytest -rA --durations 25 {posargs}
+ 
+ [testenv:du-latest]
+ commands =

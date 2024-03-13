@@ -1,0 +1,16 @@
+diff --git a/lib/matplotlib/cm.py b/lib/matplotlib/cm.py
+index 38158db956..3ef396eed2 100644
+--- a/lib/matplotlib/cm.py
++++ b/lib/matplotlib/cm.py
+@@ -203,7 +203,10 @@ class ColormapRegistry(Mapping):
+         if isinstance(cmap, colors.Colormap):
+             return cmap
+         if isinstance(cmap, str):
+-            _api.check_in_list(sorted(_colormaps), cmap=cmap)
++            # Check if the colormap name is in the registry, and if not,
++            # raise a ValueError.
++            if cmap not in self:
++                raise ValueError(f"{cmap!r} is not a known colormap name")
+             # otherwise, it must be a string so look it up
+             return self[cmap]
+         raise TypeError(

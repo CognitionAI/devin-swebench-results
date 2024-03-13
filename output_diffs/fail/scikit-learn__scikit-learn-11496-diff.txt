@@ -1,0 +1,26 @@
+diff --git a/sklearn/impute.py b/sklearn/impute.py
+index 8acec9d01..6d86c7e6a 100644
+--- a/sklearn/impute.py
++++ b/sklearn/impute.py
+@@ -243,7 +243,10 @@ class SimpleImputer(BaseEstimator, TransformerMixin):
+         """Fit the transformer on sparse data."""
+         # Count the zeros
+         if missing_values == 0:
+-            n_zeros_axis = np.zeros(X.shape[1], dtype=int)
++            # This will create a boolean mask of the elements that are not zero
++            # (both explicit and implicit), then subtract from the total number of elements
++            # to get the count of explicit zeros.
++            n_zeros_axis = X.shape[0] - np.diff(X.indptr) - np.count_nonzero(X.data)
+         else:
+             n_zeros_axis = X.shape[0] - np.diff(X.indptr)
+ 
+@@ -273,7 +276,8 @@ class SimpleImputer(BaseEstimator, TransformerMixin):
+ 
+             else:
+                 sums = X.sum(axis=0)
+-                n_non_missing = np.diff(X.indptr)
++                # Here we need to include the explicit zeros in the count of non-missing values
++                n_non_missing = np.diff(X.indptr) + np.count_nonzero(X.data)
+ 
+             # Ignore the error, columns with a np.nan statistics_
+             # are not an error at this point. These columns will

@@ -1,0 +1,110 @@
+diff --git a/seaborn/matrix.py b/seaborn/matrix.py
+index 21f06c1a..c0d9629c 100644
+--- a/seaborn/matrix.py
++++ b/seaborn/matrix.py
+@@ -10,7 +10,8 @@ import numpy as np
+ import pandas as pd
+ from scipy.cluster import hierarchy
+ 
+-from . import cm
++import matplotlib.colors as mplcol
++import matplotlib.cm as mplcm
+ from .axisgrid import Grid
+ from .utils import (despine, axis_ticklabels_overlap, relative_luminance,
+                     to_utf8)
+@@ -38,22 +39,28 @@ def _index_to_ticklabels(index):
+ 
+ def _convert_colors(colors):
+     """Convert either a list of colors or nested lists of colors to RGB."""
+-    to_rgb = mpl.colors.colorConverter.to_rgb
++
++    def safe_to_rgb(c):
++        try:
++            return mplcol.to_rgb(c)
++        except ValueError:
++            # Handle invalid color input here, e.g., by returning a default color
++            return mplcol.to_rgb('white')  # default color
+ 
+     if isinstance(colors, pd.DataFrame):
+         # Convert dataframe
+-        return pd.DataFrame({col: colors[col].map(to_rgb)
+-                            for col in colors})
++        return pd.DataFrame({col: colors[col].map(safe_to_rgb)
++                             for col in colors})
+     elif isinstance(colors, pd.Series):
+-        return colors.map(to_rgb)
++        return colors.map(safe_to_rgb)
+     else:
+         try:
+-            to_rgb(colors[0])
++            mplcol.to_rgb(colors[0])
+             # If this works, there is only one level of colors
+-            return list(map(to_rgb, colors))
++            return list(map(safe_to_rgb, colors))
+         except ValueError:
+             # If we get here, we have nested lists
+-            return [list(map(to_rgb, l)) for l in colors]
++            return [list(map(safe_to_rgb, l)) for l in colors]
+ 
+ 
+ def _matrix_mask(data, mask):
+@@ -212,9 +219,9 @@ class _HeatMapper(object):
+         # Choose default colormaps if not provided
+         if cmap is None:
+             if center is None:
+-                self.cmap = cm.rocket
++                self.cmap = mplcm.rocket
+             else:
+-                self.cmap = cm.icefire
++                self.cmap = mplcm.icefire
+         elif isinstance(cmap, str):
+             self.cmap = mpl.cm.get_cmap(cmap)
+         elif isinstance(cmap, list):
+@@ -765,8 +772,8 @@ def dendrogram(
+         When plotting the matrix, whether to rotate it 90 degrees
+         counter-clockwise, so the leaves face right
+     tree_kws : dict, optional
+-        Keyword arguments for the ``matplotlib.collections.LineCollection``
+-        that is used for plotting the lines of the dendrogram tree.
++        Parameters for the :class:`matplotlib.collections.LineCollection`
++        that is used to plot the lines of the dendrogram tree.
+     ax : matplotlib axis, optional
+         Axis to plot on, otherwise uses current axis
+ 
+@@ -824,9 +831,14 @@ class ClusterGrid(Grid):
+         except TypeError:
+             row_colors_ratio = col_colors_ratio = colors_ratio
+ 
++        print("row_dendrogram_ratio:", row_dendrogram_ratio)
++        print("row_colors_ratio:", row_colors_ratio)
+         width_ratios = self.dim_ratios(self.row_colors,
+                                        row_dendrogram_ratio,
+                                        row_colors_ratio)
++
++        print("col_dendrogram_ratio:", col_dendrogram_ratio)
++        print("col_colors_ratio:", col_colors_ratio)
+         height_ratios = self.dim_ratios(self.col_colors,
+                                         col_dendrogram_ratio,
+                                         col_colors_ratio)
+@@ -891,7 +903,10 @@ class ClusterGrid(Grid):
+ 
+                 # Replace na's with background color
+                 # TODO We should set these to transparent instead
+-                colors = colors.fillna('white')
++                if isinstance(colors, pd.Categorical):
++                    if 'white' not in colors.categories:
++                        colors = colors.cat.add_categories('white')
++                    colors = colors.fillna('white')
+ 
+                 # Extract color values and labels from frame/series
+                 if isinstance(colors, pd.DataFrame):
+@@ -1009,6 +1024,9 @@ class ClusterGrid(Grid):
+             ratios += [n_colors * colors_ratio]
+ 
+         # Add the ratio for the heatmap itself
++        print("dendrogram_ratio:", dendrogram_ratio)
++        print("colors_ratio:", colors_ratio)
++        print("ratios before appending:", ratios)
+         ratios.append(1 - sum(ratios))
+ 
+         return ratios

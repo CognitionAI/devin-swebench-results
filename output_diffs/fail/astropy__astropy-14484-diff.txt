@@ -1,0 +1,22 @@
+diff --git a/astropy/units/quantity.py b/astropy/units/quantity.py
+index 0b60a4fc08..054e537fcb 100644
+--- a/astropy/units/quantity.py
++++ b/astropy/units/quantity.py
+@@ -40,6 +40,10 @@ from .quantity_helper.function_helpers import (
+     SUBCLASS_SAFE_FUNCTIONS,
+     UNSUPPORTED_FUNCTIONS,
+ )
++
++# Added np.amax to SUBCLASS_SAFE_FUNCTIONS to ensure the numpy 'max' function is recognized as safe
++# with Quantity objects, preventing a warning with numpy-dev version post 1.24.2.
++SUBCLASS_SAFE_FUNCTIONS.add(np.amax)
+ from .structured import StructuredUnit, _structured_unit_like_dtype
+ from .utils import is_effectively_unity
+ 
+@@ -2257,3 +2261,6 @@ def _unquantify_allclose_arguments(actual, desired, rtol, atol):
+         raise UnitsError("'rtol' should be dimensionless")
+ 
+     return actual.value, desired.value, rtol.value, atol.value
++
++# Add np.amax to the SUBCLASS_SAFE_FUNCTIONS set
++SUBCLASS_SAFE_FUNCTIONS.add(np.amax)

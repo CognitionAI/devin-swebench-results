@@ -1,0 +1,22 @@
+diff --git a/astropy/io/fits/hdu/hdulist.py b/astropy/io/fits/hdu/hdulist.py
+index 393a9856ce..c874af37c2 100644
+--- a/astropy/io/fits/hdu/hdulist.py
++++ b/astropy/io/fits/hdu/hdulist.py
+@@ -1387,3 +1387,17 @@ class HDUList(list, _Verify):
+                 self._truncate = False
+ 
+         return self._resize
++
++    def copy(self):
++        """
++        Create a copy of the HDUList.
++
++        Returns
++        -------
++        copy : HDUList
++            A copy of the HDUList.
++        """
++        new_hdulist = HDUList()
++        for hdu in self:
++            new_hdulist.append(hdu.copy())
++        return new_hdulist

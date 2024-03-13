@@ -1,0 +1,31 @@
+diff --git a/django/core/management/__init__.py b/django/core/management/__init__.py
+index adc7d173eb..2690cf6e21 100644
+--- a/django/core/management/__init__.py
++++ b/django/core/management/__init__.py
+@@ -223,20 +223,14 @@ class ManagementUtility:
+         try:
+             app_name = commands[subcommand]
+         except KeyError:
+-            if os.environ.get('DJANGO_SETTINGS_MODULE'):
+-                # If `subcommand` is missing due to misconfigured settings, the
+-                # following line will retrigger an ImproperlyConfigured exception
+-                # (get_commands() swallows the original one) so the user is
+-                # informed about it.
+-                settings.INSTALLED_APPS
+-            else:
+-                sys.stderr.write("No Django settings specified.\n")
+-            possible_matches = get_close_matches(subcommand, commands)
+             sys.stderr.write('Unknown command: %r' % subcommand)
+-            if possible_matches:
+-                sys.stderr.write('. Did you mean %s?' % possible_matches[0])
+-            sys.stderr.write("\nType '%s help' for usage.\n" % self.prog_name)
+             sys.exit(1)
++
++        if not settings.configured:
++            # Attempt to access `settings.INSTALLED_APPS` to retrigger the
++            # `ImproperlyConfigured` exception if settings are misconfigured.
++            settings.INSTALLED_APPS
++
+         if isinstance(app_name, BaseCommand):
+             # If the command is already loaded, use it directly.
+             klass = app_name

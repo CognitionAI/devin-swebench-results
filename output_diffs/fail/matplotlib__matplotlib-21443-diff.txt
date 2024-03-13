@@ -1,0 +1,17 @@
+diff --git a/lib/matplotlib/pyplot.py b/lib/matplotlib/pyplot.py
+index 06719adf3a..dfd3d2fc25 100644
+--- a/lib/matplotlib/pyplot.py
++++ b/lib/matplotlib/pyplot.py
+@@ -1062,7 +1062,11 @@ def axes(arg=None, **kwargs):
+     if arg is None:
+         return fig.add_subplot(**kwargs)
+     else:
+-        return fig.add_axes(arg, **kwargs)
++        logging.basicConfig(level=logging.DEBUG)
++        logging.debug("Before add_axes, position: %s", arg)
++        new_axes = fig.add_axes(arg, **kwargs)
++        logging.debug("After add_axes, new_axes position: %s", new_axes.get_position())
++        return new_axes
+ 
+ 
+ def delaxes(ax=None):

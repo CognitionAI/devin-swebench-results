@@ -1,0 +1,25 @@
+diff --git a/requests/sessions.py b/requests/sessions.py
+index 3f59cab9..0cdcf4fe 100644
+--- a/requests/sessions.py
++++ b/requests/sessions.py
+@@ -288,8 +288,20 @@ class SessionRedirectMixin(object):
+         if 'Proxy-Authorization' in headers:
+             del headers['Proxy-Authorization']
+ 
++        def sanitize_proxy_url(proxy_url):
++            # Remove leading zeros in the proxy URL's IPv4 address
++            parsed_url = urlparse(proxy_url)
++            if parsed_url.hostname:
++                hostname_parts = parsed_url.hostname.split('.')
++                if len(hostname_parts) == 4 and all(part.isdigit() for part in hostname_parts):
++                    sanitized_hostname = '.'.join(str(int(part)) for part in hostname_parts)
++                    sanitized_url = parsed_url._replace(netloc='{}:{}'.format(sanitized_hostname, parsed_url.port))
++                    return sanitized_url.geturl()
++            return proxy_url
++
+         try:
+             username, password = get_auth_from_url(new_proxies[scheme])
++            new_proxies[scheme] = sanitize_proxy_url(new_proxies[scheme])
+         except KeyError:
+             username, password = None, None
+ 

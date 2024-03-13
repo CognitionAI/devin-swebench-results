@@ -1,0 +1,77 @@
+diff --git a/django/core/serializers/python.py b/django/core/serializers/python.py
+index a3918bf9d2..fb1fc0d33d 100644
+--- a/django/core/serializers/python.py
++++ b/django/core/serializers/python.py
+@@ -8,6 +8,7 @@ from django.apps import apps
+ from django.core.serializers import base
+ from django.db import DEFAULT_DB_ALIAS, models
+ from django.utils.encoding import is_protected_type
++from enum import Enum, IntFlag
+ 
+ 
+ class Serializer(base.Serializer):
+@@ -18,7 +19,7 @@ class Serializer(base.Serializer):
+     internal_use_only = True
+ 
+     def start_serialization(self):
+-        self._current = None
++        self._current = {}
+         self.objects = []
+ 
+     def end_serialization(self):
+@@ -29,17 +30,20 @@ class Serializer(base.Serializer):
+ 
+     def end_object(self, obj):
+         self.objects.append(self.get_dump_object(obj))
+-        self._current = None
+ 
+     def get_dump_object(self, obj):
+         data = {"model": str(obj._meta)}
+         if not self.use_natural_primary_keys or not hasattr(obj, "natural_key"):
+             data["pk"] = self._value_from_field(obj, obj._meta.pk)
+-        data["fields"] = self._current
++        import json
++        data["fields"] = json.dumps(self._current)
+         return data
+ 
+     def _value_from_field(self, obj, field):
+         value = field.value_from_object(obj)
++        if isinstance(value, IntFlag):
++            decomposed_flags = [e.name for e in value.__class__ if e in value and e.name is not None]
++            value = ' | '.join(decomposed_flags)
+         # Protected types (i.e., primitives like None, numbers, dates,
+         # and Decimals) are passed through as is. All other values are
+         # converted to string first.
+@@ -62,24 +66,20 @@ class Serializer(base.Serializer):
+         self._current[field.name] = value
+ 
+     def handle_m2m_field(self, obj, field):
+-        if field.remote_field.through._meta.auto_created:
+-            if self.use_natural_foreign_keys and hasattr(
+-                field.remote_field.model, "natural_key"
+-            ):
++        def m2m_value_natural_key(value):
++            return value.natural_key()
+ 
+-                def m2m_value(value):
+-                    return value.natural_key()
+-
+-            else:
+-
+-                def m2m_value(value):
+-                    return self._value_from_field(value, value._meta.pk)
++        def m2m_value_pk(value):
++            return self._value_from_field(value, value._meta.pk)
+ 
++        if field.remote_field.through._meta.auto_created:
+             m2m_iter = getattr(obj, "_prefetched_objects_cache", {}).get(
+                 field.name,
+                 getattr(obj, field.name).iterator(),
+             )
+-            self._current[field.name] = [m2m_value(related) for related in m2m_iter]
++            self._current[field.name] = [m2m_value_natural_key(related) if self.use_natural_foreign_keys and hasattr(
++                field.remote_field.model, "natural_key"
++            ) else m2m_value_pk(related) for related in m2m_iter]
+ 
+     def getvalue(self):
+         return self.objects

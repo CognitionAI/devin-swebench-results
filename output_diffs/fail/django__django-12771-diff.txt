@@ -1,0 +1,118 @@
+diff --git a/django/db/migrations/state.py b/django/db/migrations/state.py
+index fe8594ad77..c7465e4497 100644
+--- a/django/db/migrations/state.py
++++ b/django/db/migrations/state.py
+@@ -359,16 +359,14 @@ class ModelState:
+     def __init__(self, app_label, name, fields, options=None, bases=None, managers=None):
+         self.app_label = app_label
+         self.name = name
+-        self.fields = fields
++        self.fields = {name: field for name, field in fields}
+         self.options = options or {}
+-        self.options.setdefault('indexes', [])
+-        self.options.setdefault('constraints', [])
++        self.options.setdefault('indexes', {})
++        self.options.setdefault('constraints', {})
+         self.bases = bases or (models.Model,)
+         self.managers = managers or []
+         # Sanity-check that fields is NOT a dict. It must be ordered.
+-        if isinstance(self.fields, dict):
+-            raise ValueError("ModelState.fields cannot be a dict - it must be a list of 2-tuples.")
+-        for name, field in fields:
++        for name, field in self.fields.items():
+             # Sanity-check that fields are NOT already bound to a model.
+             if hasattr(field, 'model'):
+                 raise ValueError(
+@@ -386,12 +384,19 @@ class ModelState:
+                     'Use a string reference instead.' % name
+                 )
+         # Sanity-check that indexes have their name set.
+-        for index in self.options['indexes']:
++        for index in self.options['indexes'].values():
+             if not index.name:
+                 raise ValueError(
+                     "Indexes passed to ModelState require a name attribute. "
+                     "%r doesn't have one." % index
+                 )
++        # Sanity-check that constraints have their name set.
++        for constraint in self.options['constraints'].values():
++            if not constraint.name:
++                raise ValueError(
++                    "Constraints passed to ModelState require a name attribute. "
++                    "%r doesn't have one." % constraint
++                )
+ 
+     @cached_property
+     def name_lower(self):
+@@ -441,13 +446,13 @@ class ModelState:
+                     it = model._meta.original_attrs["index_together"]
+                     options[name] = set(normalize_together(it))
+                 elif name == "indexes":
+-                    indexes = [idx.clone() for idx in model._meta.indexes]
+-                    for index in indexes:
++                    indexes = {idx.name: idx.clone() for idx in model._meta.indexes}
++                    for index in indexes.values():
+                         if not index.name:
+                             index.set_name_with_model(model)
+                     options['indexes'] = indexes
+                 elif name == 'constraints':
+-                    options['constraints'] = [con.clone() for con in model._meta.constraints]
++                    options['constraints'] = {con.name: con.clone() for con in model._meta.constraints}
+                 else:
+                     options[name] = model._meta.original_attrs[name]
+         # If we're ignoring relationships, remove all field-listing model
+@@ -544,7 +549,7 @@ class ModelState:
+         return self.__class__(
+             app_label=self.app_label,
+             name=self.name,
+-            fields=list(self.fields),
++            fields=dict(self.fields),
+             # Since options are shallow-copied here, operations such as
+             # AddIndex must replace their option (e.g 'indexes') rather
+             # than mutating it.
+@@ -567,7 +572,7 @@ class ModelState:
+         except LookupError:
+             raise InvalidBasesError("Cannot resolve one or more bases from %r" % (self.bases,))
+         # Turn fields into a dict for the body, add other bits
+-        body = {name: field.clone() for name, field in self.fields}
++        body = {name: field.clone() for name, field in self.fields.items()}
+         body['Meta'] = meta
+         body['__module__'] = "__fake__"
+ 
+@@ -577,22 +582,13 @@ class ModelState:
+         return type(self.name, bases, body)
+ 
+     def get_field_by_name(self, name):
+-        for fname, field in self.fields:
+-            if fname == name:
+-                return field
+-        raise ValueError("No field called %s on model %s" % (name, self.name))
++        return self.fields[name]
+ 
+     def get_index_by_name(self, name):
+-        for index in self.options['indexes']:
+-            if index.name == name:
+-                return index
+-        raise ValueError("No index named %s on model %s" % (name, self.name))
++        return self.options['indexes'][name]
+ 
+     def get_constraint_by_name(self, name):
+-        for constraint in self.options['constraints']:
+-            if constraint.name == name:
+-                return constraint
+-        raise ValueError('No constraint named %s on model %s' % (name, self.name))
++        return self.options['constraints'][name]
+ 
+     def __repr__(self):
+         return "<%s: '%s.%s'>" % (self.__class__.__name__, self.app_label, self.name)
+@@ -601,9 +597,7 @@ class ModelState:
+         return (
+             (self.app_label == other.app_label) and
+             (self.name == other.name) and
+-            (len(self.fields) == len(other.fields)) and
+-            all((k1 == k2 and (f1.deconstruct()[1:] == f2.deconstruct()[1:]))
+-                for (k1, f1), (k2, f2) in zip(self.fields, other.fields)) and
++            (self.fields == other.fields) and
+             (self.options == other.options) and
+             (self.bases == other.bases) and
+             (self.managers == other.managers)

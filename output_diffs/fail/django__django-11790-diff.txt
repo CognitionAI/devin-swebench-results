@@ -1,0 +1,21 @@
+diff --git a/django/contrib/auth/forms.py b/django/contrib/auth/forms.py
+index a0cfed0995..1b40c5dd22 100644
+--- a/django/contrib/auth/forms.py
++++ b/django/contrib/auth/forms.py
+@@ -165,7 +165,7 @@ class AuthenticationForm(forms.Form):
+     Base class for authenticating users. Extend this to get a form that accepts
+     username/password logins.
+     """
+-    username = UsernameField(widget=forms.TextInput(attrs={'autofocus': True}))
++    username = UsernameField(widget=forms.TextInput(attrs={'autofocus': True, 'maxlength': self.username_field.max_length}))
+     password = forms.CharField(
+         label=_("Password"),
+         strip=False,
+@@ -194,6 +194,7 @@ class AuthenticationForm(forms.Form):
+         self.fields['username'].max_length = self.username_field.max_length or 254
+         if self.fields['username'].label is None:
+             self.fields['username'].label = capfirst(self.username_field.verbose_name)
++        self.fields['username'].widget.attrs['maxlength'] = self.username_field.max_length
+ 
+     def clean(self):
+         username = self.cleaned_data.get('username')

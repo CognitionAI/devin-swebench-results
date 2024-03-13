@@ -1,0 +1,64 @@
+diff --git a/django/core/management/commands/showmigrations.py b/django/core/management/commands/showmigrations.py
+index e62a1b8593..9da6b4307a 100644
+--- a/django/core/management/commands/showmigrations.py
++++ b/django/core/management/commands/showmigrations.py
+@@ -4,11 +4,16 @@ from django.apps import apps
+ from django.core.management.base import BaseCommand
+ from django.db import DEFAULT_DB_ALIAS, connections
+ from django.db.migrations.loader import MigrationLoader
+-
++from django.db.migrations.recorder import MigrationRecorder
++from django.core.management.color import make_style
+ 
+ class Command(BaseCommand):
+     help = "Shows all available migrations for the current project"
+ 
++    def __init__(self, *args, **kwargs):
++        super().__init__(*args, **kwargs)
++        self.style = make_style()
++
+     def add_arguments(self, parser):
+         parser.add_argument(
+             'app_label', nargs='*',
+@@ -88,15 +93,33 @@ class Command(BaseCommand):
+                         title = plan_node[1]
+                         if graph.nodes[plan_node].replaces:
+                             title += " (%s squashed migrations)" % len(graph.nodes[plan_node].replaces)
+-                        applied_migration = loader.applied_migrations.get(plan_node)
+-                        # Mark it as applied/unapplied
+-                        if applied_migration:
+-                            output = ' [X] %s' % title
+-                            if self.verbosity >= 2 and hasattr(applied_migration, 'applied'):
+-                                output += ' (applied at %s)' % applied_migration.applied.strftime('%Y-%m-%d %H:%M:%S')
+-                            self.stdout.write(output)
++                            if loader.applied_migrations is not None:
++                                applied_migration = loader.applied_migrations.get(plan_node)
++                                # Mark it as applied/unapplied
++                                if applied_migration:
++                                    output = ' [X] %s' % title
++                                    if self.verbosity >= 2 and hasattr(applied_migration, 'applied'):
++                                        output += ' (applied at %s)' % applied_migration.applied.strftime('%Y-%m-%d %H:%M:%S')
++                                    self.stdout.write(output)
++                                else:
++                                    # Check if the squashed migration is recorded as applied
++                                    if plan_node not in loader.applied_migrations:
++                                        # Mark as "soft" applied
++                                        output = ' [~] %s' % title
++                                    else:
++                                        # Mark as fully applied
++                                        output = ' [X] %s' % title
++                                    self.stdout.write(output)
+                         else:
+-                            self.stdout.write(" [ ] %s" % title)
++                            if loader.applied_migrations is not None:
++                                applied_migration = loader.applied_migrations.get(plan_node)
++                                if applied_migration:
++                                    output = ' [X] %s' % title
++                                    if self.verbosity >= 2 and hasattr(applied_migration, 'applied'):
++                                        output += ' (applied at %s)' % applied_migration.applied.strftime('%Y-%m-%d %H:%M:%S')
++                                    self.stdout.write(output)
++                                else:
++                                    self.stdout.write(" [ ] %s" % title)
+                         shown.add(plan_node)
+             # If we didn't print anything, then a small message
+             if not shown:

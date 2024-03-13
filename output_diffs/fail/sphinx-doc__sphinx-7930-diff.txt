@@ -1,0 +1,76 @@
+diff --git a/setup.py b/setup.py
+index a404f1fa5..250ef5b61 100644
+--- a/setup.py
++++ b/setup.py
+@@ -21,7 +21,7 @@ install_requires = [
+     'sphinxcontrib-htmlhelp',
+     'sphinxcontrib-serializinghtml',
+     'sphinxcontrib-qthelp',
+-    'Jinja2>=2.3',
++    'Jinja2<3.1',
+     'Pygments>=2.0',
+     'docutils>=0.12',
+     'snowballstemmer>=1.1',
+diff --git a/sphinx/ext/autodoc/__init__.py b/sphinx/ext/autodoc/__init__.py
+index 9300a2cce..09c8d3d61 100644
+--- a/sphinx/ext/autodoc/__init__.py
++++ b/sphinx/ext/autodoc/__init__.py
+@@ -1550,31 +1550,23 @@ class DataDocumenter(ModuleLevelDocumenter):
+     def add_directive_header(self, sig: str) -> None:
+         super().add_directive_header(sig)
+         sourcename = self.get_sourcename()
+-        if not self.options.annotation:
+-            # obtain annotation for this data
+-            annotations = getattr(self.parent, '__annotations__', {})
+-            if annotations and self.objpath[-1] in annotations:
+-                objrepr = stringify_typehint(annotations.get(self.objpath[-1]))
+-                self.add_line('   :type: ' + objrepr, sourcename)
+-            else:
+-                key = ('.'.join(self.objpath[:-1]), self.objpath[-1])
+-                if self.analyzer and key in self.analyzer.annotations:
+-                    self.add_line('   :type: ' + self.analyzer.annotations[key],
+-                                  sourcename)
++        # Check if the annotation is a custom type and handle it
++        if self.analyzer and self.objpath[-1] in self.analyzer.annotations:
++            annotation = self.analyzer.annotations[self.objpath[-1]]
++            if isinstance(annotation, str) and annotation.startswith('~'):
++                # This is a shorthand syntax for 'module.Class' which means
++                # 'from module import Class' was used, so we strip the module part
++                annotation = annotation[1:]
++            self.add_line('   :type: ' + annotation, sourcename)
+ 
+-            try:
+-                if self.object is UNINITIALIZED_ATTR:
+-                    pass
+-                else:
+-                    objrepr = object_description(self.object)
+-                    self.add_line('   :value: ' + objrepr, sourcename)
+-            except ValueError:
++        try:
++            if self.object is UNINITIALIZED_ATTR:
+                 pass
+-        elif self.options.annotation is SUPPRESS:
++            else:
++                objrepr = object_description(self.object)
++                self.add_line('   :value: ' + objrepr, sourcename)
++        except ValueError:
+             pass
+-        else:
+-            self.add_line('   :annotation: %s' % self.options.annotation,
+-                          sourcename)
+ 
+     def document_members(self, all_members: bool = False) -> None:
+         pass
+diff --git a/tox.ini b/tox.ini
+index bddd822a6..34baee205 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -27,7 +27,7 @@ extras =
+ setenv =
+     PYTHONWARNINGS = all,ignore::ImportWarning:importlib._bootstrap_external,ignore::DeprecationWarning:site,ignore::DeprecationWarning:distutils
+ commands=
+-    pytest --durations 25 {posargs}
++    pytest -rA --durations 25 {posargs}
+ 
+ [testenv:flake8]
+ basepython = python3

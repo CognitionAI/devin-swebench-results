@@ -1,0 +1,19 @@
+diff --git a/sympy/core/mod.py b/sympy/core/mod.py
+index ef4a69b7ed..fcebb0f5dc 100644
+--- a/sympy/core/mod.py
++++ b/sympy/core/mod.py
+@@ -100,6 +100,14 @@ def doit(p, q):
+             elif (qinner*(q - qinner)).is_nonnegative:
+                 # |qinner| < |q| and have same sign
+                 return p
++            # Check for addition of an integer to the inner Mod
++            elif isinstance(p.args[0], Add):
++                inner_add = p.args[0]
++                for term in inner_add.args:
++                    if term.is_Integer:
++                        other_terms = inner_add - term
++                        if isinstance(other_terms, cls) and (term + 1) % q == 0:
++                            return cls(other_terms.args[0], q)
+         elif isinstance(-p, cls):
+             qinner = (-p).args[1]
+             if qinner % q == 0:

@@ -1,0 +1,102 @@
+diff --git a/sympy/calculus/util.py b/sympy/calculus/util.py
+index 860e0733f9..922b1edfd8 100644
+--- a/sympy/calculus/util.py
++++ b/sympy/calculus/util.py
+@@ -267,7 +267,7 @@ def elm_domain(expr, intrvl):
+         return _domain
+ 
+ 
+-def periodicity(f, symbol, check=False):
++def periodicity(f, symbol, check=False, depth=0):
+     """
+     Tests the given function for periodicity in the given symbol.
+ 
+@@ -280,6 +280,8 @@ def periodicity(f, symbol, check=False):
+         The variable for which the period is to be determined.
+     check : Boolean
+         The flag to verify whether the value being returned is a period or not.
++    depth : int
++        The depth of the recursion used for periodicity testing.
+ 
+     Returns
+     =======
+@@ -330,6 +332,17 @@ def periodicity(f, symbol, check=False):
+     from sympy import simplify, lcm_list
+     from sympy.functions.elementary.trigonometric import TrigonometricFunction
+     from sympy.solvers.decompogen import decompogen
++    from sympy.functions.elementary.complexes import Abs
++
++    MAX_DEPTH = 10
++    if depth > MAX_DEPTH:
++        return None
++
++    if isinstance(f, Abs) and isinstance(f.args[0], TrigonometricFunction):
++        inner_function = f.args[0]
++        inner_period = inner_function.period(symbol)
++        if inner_period is not None:
++            return inner_period / 2
+ 
+     orig_f = f
+     f = simplify(orig_f)
+@@ -350,28 +363,28 @@ def periodicity(f, symbol, check=False):
+         expo_has_sym = expo.has(symbol)
+ 
+         if base_has_sym and not expo_has_sym:
+-            period = periodicity(base, symbol)
++            period = periodicity(base, symbol, check, depth + 1)
+ 
+         elif expo_has_sym and not base_has_sym:
+-            period = periodicity(expo, symbol)
++            period = periodicity(expo, symbol, check, depth + 1)
+ 
+         else:
+-            period = _periodicity(f.args, symbol)
++            period = _periodicity(f.args, symbol, check, depth + 1)
+ 
+     elif f.is_Mul:
+         coeff, g = f.as_independent(symbol, as_Add=False)
+         if isinstance(g, TrigonometricFunction) or coeff is not S.One:
+-            period = periodicity(g, symbol)
++            period = periodicity(g, symbol, check, depth + 1)
+ 
+         else:
+-            period = _periodicity(g.args, symbol)
++            period = _periodicity(g.args, symbol, check, depth + 1)
+ 
+     elif f.is_Add:
+         k, g = f.as_independent(symbol)
+         if k is not S.Zero:
+-            return periodicity(g, symbol)
++            return periodicity(g, symbol, check, depth + 1)
+ 
+-        period = _periodicity(g.args, symbol)
++        period = _periodicity(g.args, symbol, check, depth + 1)
+ 
+     elif period is None:
+         from sympy.solvers.decompogen import compogen
+@@ -382,7 +395,7 @@ def periodicity(f, symbol, check=False):
+                 start_index = num_of_gs - 1 - index
+                 g = compogen(g_s[start_index:], symbol)
+                 if g != orig_f and g != f: # Fix for issue 12620
+-                    period = periodicity(g, symbol)
++                    period = periodicity(g, symbol, check, depth + 1)
+                     if period is not None:
+                         break
+ 
+@@ -401,14 +414,14 @@ def periodicity(f, symbol, check=False):
+     return None
+ 
+ 
+-def _periodicity(args, symbol):
++def _periodicity(args, symbol, check=False, depth=0):
+     """Helper for periodicity to find the period of a list of simpler
+     functions. It uses the `lcim` method to find the least common period of
+     all the functions.
+     """
+     periods = []
+     for f in args:
+-        period = periodicity(f, symbol)
++        period = periodicity(f, symbol, check, depth + 1)
+         if period is None:
+             return None
+ 

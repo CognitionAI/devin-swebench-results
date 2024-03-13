@@ -1,0 +1,137 @@
+diff --git a/django/core/management/commands/makemessages.py b/django/core/management/commands/makemessages.py
+index 6c1e8248ce..b260a4a3d3 100644
+--- a/django/core/management/commands/makemessages.py
++++ b/django/core/management/commands/makemessages.py
+@@ -542,9 +542,6 @@ class Command(BaseCommand):
+                 '--keyword=gettext_noop',
+                 '--keyword=gettext_lazy',
+                 '--keyword=ngettext_lazy:1,2',
+-                '--keyword=ugettext_noop',
+-                '--keyword=ugettext_lazy',
+-                '--keyword=ungettext_lazy:1,2',
+                 '--keyword=pgettext:1c,2',
+                 '--keyword=npgettext:1c,2,3',
+                 '--keyword=pgettext_lazy:1c,2',
+diff --git a/django/utils/translation/__init__.py b/django/utils/translation/__init__.py
+index 955a038109..babb45e1e3 100644
+--- a/django/utils/translation/__init__.py
++++ b/django/utils/translation/__init__.py
+@@ -71,25 +71,36 @@ del Trans
+ def gettext_noop(message):
+     return _trans.gettext_noop(message)
+ 
+-
++import warnings
++# Deprecate ugettext_noop
+ ugettext_noop = gettext_noop
+-
++warnings.warn(
++    'ugettext_noop is deprecated in favor of gettext_noop.',
++    DeprecationWarning,
++    stacklevel=2
++)
+ 
+ def gettext(message):
+     return _trans.gettext(message)
+ 
+-
+-# An alias since Django 2.0
++# Deprecate ugettext
+ ugettext = gettext
+-
++warnings.warn(
++    'ugettext is deprecated in favor of gettext.',
++    DeprecationWarning,
++    stacklevel=2
++)
+ 
+ def ngettext(singular, plural, number):
+     return _trans.ngettext(singular, plural, number)
+ 
+-
+-# An alias since Django 2.0
++# Deprecate ungettext
+ ungettext = ngettext
+-
++warnings.warn(
++    'ungettext is deprecated in favor of ngettext.',
++    DeprecationWarning,
++    stacklevel=2
++)
+ 
+ def pgettext(context, message):
+     return _trans.pgettext(context, message)
+@@ -100,8 +111,13 @@ def npgettext(context, singular, plural, number):
+ 
+ 
+ gettext_lazy = ugettext_lazy = lazy(gettext, str)
+-pgettext_lazy = lazy(pgettext, str)
+-
++# Deprecate ugettext_lazy and ungettext_lazy
++ungettext_lazy = ngettext_lazy
++warnings.warn(
++    'ugettext_lazy and ungettext_lazy are deprecated in favor of gettext_lazy and ngettext_lazy respectively.',
++    DeprecationWarning,
++    stacklevel=2
++)
+ 
+ def lazy_number(func, resultclass, number=None, **kwargs):
+     if isinstance(number, int):
+diff --git a/docs/ref/utils.txt b/docs/ref/utils.txt
+index 0461cf6c11..8ae7630cd8 100644
+--- a/docs/ref/utils.txt
++++ b/docs/ref/utils.txt
+@@ -978,7 +978,6 @@ between unicode and bytestrings. If your code doesn't support Python 2, use the
+ functions without the ``u``.
+ 
+ .. function:: gettext(message)
+-.. function:: ugettext(message)
+ 
+     Translates ``message`` and returns it as a string.
+ 
+@@ -989,15 +988,12 @@ functions without the ``u``.
+     For more information, see :ref:`contextual-markers`.
+ 
+ .. function:: gettext_lazy(message)
+-.. function:: ugettext_lazy(message)
+-.. function:: pgettext_lazy(context, message)
+ 
+     Same as the non-lazy versions above, but using lazy execution.
+ 
+     See :ref:`lazy translations documentation <lazy-translations>`.
+ 
+ .. function:: gettext_noop(message)
+-.. function:: ugettext_noop(message)
+ 
+     Marks strings for translation but doesn't translate them now. This can be
+     used to store strings in global variables that should stay in the base
+@@ -1005,7 +1001,6 @@ functions without the ``u``.
+     later.
+ 
+ .. function:: ngettext(singular, plural, number)
+-.. function:: ungettext(singular, plural, number)
+ 
+     Translates ``singular`` and ``plural`` and returns the appropriate string
+     based on ``number``.
+@@ -1016,8 +1011,6 @@ functions without the ``u``.
+     based on ``number`` and the ``context``.
+ 
+ .. function:: ngettext_lazy(singular, plural, number)
+-.. function:: ungettext_lazy(singular, plural, number)
+-.. function:: npgettext_lazy(context, singular, plural, number)
+ 
+     Same as the non-lazy versions above, but using lazy execution.
+ 
+diff --git a/docs/releases/1.4.txt b/docs/releases/1.4.txt
+index ea08d4cf3d..f54f98791b 100644
+--- a/docs/releases/1.4.txt
++++ b/docs/releases/1.4.txt
+@@ -378,7 +378,7 @@ Translating URL patterns
+ Django can now look for a language prefix in the URLpattern when using the new
+ :func:`~django.conf.urls.i18n.i18n_patterns` helper function.
+ It's also now possible to define translatable URL patterns using
+-:func:`~django.utils.translation.ugettext_lazy`. See
++:func:`~django.utils.translation.gettext_lazy`. See
+ :ref:`url-internationalization` for more information about the language prefix
+ and how to internationalize URL patterns.
+ 

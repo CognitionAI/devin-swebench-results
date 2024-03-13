@@ -1,0 +1,15 @@
+diff --git a/sympy/parsing/sympy_parser.py b/sympy/parsing/sympy_parser.py
+index 52711d1324..aaa4568e61 100644
+--- a/sympy/parsing/sympy_parser.py
++++ b/sympy/parsing/sympy_parser.py
+@@ -1109,6 +1109,10 @@ class EvaluateFalseTransformer(ast.NodeTransformer):
+         ast.BitOr: 'Or',
+         ast.BitAnd: 'And',
+         ast.BitXor: 'Not',
++        ast.Lt: 'Lt',
++        ast.Gt: 'Gt',
++        ast.LtE: 'Le',
++        ast.GtE: 'Ge',
+     }
+     functions = (
+         'Abs', 'im', 're', 'sign', 'arg', 'conjugate',

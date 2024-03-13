@@ -1,0 +1,99 @@
+diff --git a/sphinx/builders/linkcheck.py b/sphinx/builders/linkcheck.py
+index 6819bd3df..eb76597c6 100644
+--- a/sphinx/builders/linkcheck.py
++++ b/sphinx/builders/linkcheck.py
+@@ -673,9 +673,12 @@ def rewrite_github_anchor(app: Sphinx, uri: str) -> Optional[str]:
+     them before checking and makes them comparable.
+     """
+     parsed = urlparse(uri)
+-    if parsed.hostname == "github.com" and parsed.fragment:
+-        prefixed = parsed.fragment.startswith('user-content-')
+-        if not prefixed:
++    if parsed.hostname == "github.com":
++        if 'blob' in parsed.path:
++            # This is a link to a file, do not modify the anchor
++            return None
++        elif parsed.fragment and not parsed.fragment.startswith('user-content-'):
++            # This is a standard GitHub markdown anchor, add the prefix
+             fragment = f'user-content-{parsed.fragment}'
+             return urlunparse(parsed._replace(fragment=fragment))
+     return None
+diff --git a/sphinx/cmd/build.py b/sphinx/cmd/build.py
+index 32a89eb29..665713725 100644
+--- a/sphinx/cmd/build.py
++++ b/sphinx/cmd/build.py
+@@ -285,7 +285,7 @@ def build_main(argv: List[str] = sys.argv[1:]) -> int:
+ 
+ 
+ def main(argv: List[str] = sys.argv[1:]) -> int:
+-    sphinx.locale.setlocale(locale.LC_ALL, '')
++    locale.setlocale(locale.LC_ALL, '')
+     sphinx.locale.init_console(os.path.join(package_dir, 'locale'), 'sphinx')
+ 
+     if argv[:1] == ['-M']:
+diff --git a/sphinx/ext/extlinks.py b/sphinx/ext/extlinks.py
+index 0af335686..62efa9deb 100644
+--- a/sphinx/ext/extlinks.py
++++ b/sphinx/ext/extlinks.py
+@@ -24,7 +24,6 @@
+     :copyright: Copyright 2007-2021 by the Sphinx team, see AUTHORS.
+     :license: BSD, see LICENSE for details.
+ """
+-
+ import warnings
+ from typing import Any, Dict, List, Tuple
+ 
+@@ -34,7 +33,6 @@ from docutils.parsers.rst.states import Inliner
+ 
+ import sphinx
+ from sphinx.application import Sphinx
+-from sphinx.deprecation import RemovedInSphinx60Warning
+ from sphinx.util.nodes import split_explicit_title
+ from sphinx.util.typing import RoleFunction
+ 
+@@ -50,7 +48,7 @@ def make_link_role(name: str, base_url: str, caption: str) -> RoleFunction:
+     except (TypeError, ValueError):
+         warnings.warn('extlinks: Sphinx-6.0 will require base URL to '
+                       'contain exactly one \'%s\' and all other \'%\' need '
+-                      'to be escaped as \'%%\'.', RemovedInSphinx60Warning)
++                      'to be escaped as \'%%\'.', Warning)
+         base_url = base_url.replace('%', '%%') + '%s'
+     if caption is not None:
+         try:
+@@ -58,7 +56,7 @@ def make_link_role(name: str, base_url: str, caption: str) -> RoleFunction:
+         except (TypeError, ValueError):
+             warnings.warn('extlinks: Sphinx-6.0 will require a caption string to '
+                           'contain exactly one \'%s\' and all other \'%\' need '
+-                          'to be escaped as \'%%\'.', RemovedInSphinx60Warning)
++                          'to be escaped as \'%%\'.', Warning)
+             caption = caption.replace('%', '%%') + '%s'
+ 
+     def role(typ: str, rawtext: str, text: str, lineno: int,
+@@ -71,7 +69,13 @@ def make_link_role(name: str, base_url: str, caption: str) -> RoleFunction:
+             if caption is None:
+                 title = full_url
+             else:
+-                title = caption % part
++                try:
++                    title = caption % part
++                    print("Caption formatting successful: ", title)  # Debugging line
++                except TypeError as e:
++                    print("TypeError in caption formatting: ", e)  # Debugging line
++                    warnings.warn('extlinks: Error in string formatting of caption: %s' % e)
++                    title = full_url  # Fallback to full URL if caption formatting fails
+         pnode = nodes.reference(title, title, internal=False, refuri=full_url)
+         return [pnode], []
+     return role
+diff --git a/tox.ini b/tox.ini
+index a363e187f..3b8bc12d0 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -27,7 +27,7 @@ setenv =
+     PYTHONWARNINGS = all,ignore::ImportWarning:importlib._bootstrap_external,ignore::DeprecationWarning:site,ignore::DeprecationWarning:distutils,ignore::DeprecationWarning:pip._vendor.packaging.version
+     PYTEST_ADDOPTS = {env:PYTEST_ADDOPTS:} --color yes
+ commands=
+-    python -X dev -m pytest --durations 25 {posargs}
++    python -X dev -m pytest -rA --durations 25 {posargs}
+ 
+ [testenv:flake8]
+ basepython = python3

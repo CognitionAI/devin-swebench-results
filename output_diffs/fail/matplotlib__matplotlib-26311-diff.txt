@@ -1,0 +1,16 @@
+diff --git a/lib/matplotlib/contour.py b/lib/matplotlib/contour.py
+index 625c3524bf..289a71050f 100644
+--- a/lib/matplotlib/contour.py
++++ b/lib/matplotlib/contour.py
+@@ -370,7 +370,10 @@ class ContourLabeler:
+         # path always starts with a MOVETO, and we consider there's an implicit
+         # MOVETO (closing the last path) at the end.
+         movetos = (codes == Path.MOVETO).nonzero()[0]
+-        start = movetos[movetos < idx][-1]
++        if movetos.size > 0 and (movetos < idx).any():
++            start = movetos[movetos < idx][-1]
++        else:
++            start = 0  # Default start value if no valid moveto is found before idx
+         try:
+             stop = movetos[movetos > idx][0]
+         except IndexError:

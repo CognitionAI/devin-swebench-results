@@ -1,0 +1,34 @@
+diff --git a/sympy/assumptions/refine.py b/sympy/assumptions/refine.py
+index e1f97190c0..838f9602af 100644
+--- a/sympy/assumptions/refine.py
++++ b/sympy/assumptions/refine.py
+@@ -373,6 +373,21 @@ def refine_matrixelement(expr, assumptions):
+             return expr
+         return MatrixElement(matrix, j, i)
+ 
++from sympy.functions.elementary.complexes import arg
++
++def refine_arg(expr, assumptions):
++    """
++    Handler for the arg function.
++    """
++    from sympy.core import pi
++    arg_expr = expr.args[0]
++    if ask(Q.real(arg_expr), assumptions):
++        if ask(Q.positive(arg_expr), assumptions):
++            return S.Zero
++        elif ask(Q.negative(arg_expr), assumptions):
++            return pi
++    return expr
++
+ handlers_dict = {
+     'Abs': refine_abs,
+     'Pow': refine_Pow,
+@@ -380,5 +395,6 @@ def refine_matrixelement(expr, assumptions):
+     're': refine_re,
+     'im': refine_im,
+     'sign': refine_sign,
+-    'MatrixElement': refine_matrixelement
++    'MatrixElement': refine_matrixelement,
++    'arg': refine_arg
+ }  # type: Dict[str, Callable[[Expr, Boolean], Expr]]

@@ -1,0 +1,21 @@
+diff --git a/sympy/sets/sets.py b/sympy/sets/sets.py
+index 9f19ecf2ab..b6eb388f76 100644
+--- a/sympy/sets/sets.py
++++ b/sympy/sets/sets.py
+@@ -389,6 +389,16 @@ def is_subset(self, other):
+         if ret is not None:
+             return ret
+ 
++        # Insert the new condition here
++        if isinstance(self, ImageSet) and other == S.Reals:
++            # Check if the base set of the imageset is a subset of Reals
++            # and the function does not return any non-real value
++            from sympy.core.function import expand_complex
++            if self.lamda.expr.is_real and self.base_set.is_subset(S.Reals):
++                # Check if the function returns a complex value
++                if not isinstance(expand_complex(self.lamda.expr), Tuple):
++                    return True
++
+         # Fall back on computing the intersection
+         # XXX: We shouldn't do this. A query like this should be handled
+         # without evaluating new Set objects. It should be the other way round

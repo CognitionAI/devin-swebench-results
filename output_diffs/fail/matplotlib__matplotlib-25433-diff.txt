@@ -1,0 +1,34 @@
+diff --git a/lib/matplotlib/widgets.py b/lib/matplotlib/widgets.py
+index ebe5da43e2..a25e76d1bb 100644
+--- a/lib/matplotlib/widgets.py
++++ b/lib/matplotlib/widgets.py
+@@ -600,7 +600,13 @@ class Slider(SliderBase):
+         int
+             Connection id (which can be used to disconnect *func*).
+         """
+-        return self._observers.connect('changed', lambda val: func(val))
++        # Wrap the original function to add debugging output
++        def wrapper(val):
++            print(f"on_changed before func: val={val}, slider.val={self.val}")
++            func(val)
++            print(f"on_changed after func: val={val}, slider.val={self.val}")
++
++        return self._observers.connect('changed', wrapper)
+ 
+ 
+ class RangeSlider(SliderBase):
+@@ -983,7 +989,13 @@ class RangeSlider(SliderBase):
+         int
+             Connection id (which can be used to disconnect *func*).
+         """
+-        return self._observers.connect('changed', lambda val: func(val))
++        # Wrap the original function to add debugging output
++        def wrapper(val):
++            print(f"RangeSlider on_changed before func: val={val}, slider.val={self.val}")
++            func(val)
++            print(f"RangeSlider on_changed after func: val={val}, slider.val={self.val}")
++
++        return self._observers.connect('changed', wrapper)
+ 
+ 
+ def _expand_text_props(props):

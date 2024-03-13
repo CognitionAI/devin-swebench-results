@@ -1,0 +1,25 @@
+diff --git a/xarray/core/missing.py b/xarray/core/missing.py
+index e6dd8b53..4f37b2a0 100644
+--- a/xarray/core/missing.py
++++ b/xarray/core/missing.py
+@@ -392,13 +392,19 @@ def _bfill(arr, n=None, axis=-1):
+     """inverse of ffill"""
+     import bottleneck as bn
+ 
++    print("Array before first flip:", arr)
+     arr = np.flip(arr, axis=axis)
++    print("Array after first flip:", arr)
+ 
+     # fill
++    print("n parameter for push:", n)
+     arr = bn.push(arr, axis=axis, n=n)
++    print("Array after push:", arr)
+ 
+     # reverse back to original
+-    return np.flip(arr, axis=axis)
++    arr = np.flip(arr, axis=axis)
++    print("Array after second flip (final state):", arr)
++    return arr
+ 
+ 
+ def ffill(arr, dim=None, limit=None):

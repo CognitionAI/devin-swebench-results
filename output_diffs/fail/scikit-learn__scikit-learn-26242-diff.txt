@@ -1,0 +1,102 @@
+diff --git a/sklearn/ensemble/_weight_boosting.py b/sklearn/ensemble/_weight_boosting.py
+index 97600b0b1..eae2a7e58 100644
+--- a/sklearn/ensemble/_weight_boosting.py
++++ b/sklearn/ensemble/_weight_boosting.py
+@@ -64,7 +64,7 @@ class BaseWeightBoosting(BaseEnsemble, metaclass=ABCMeta):
+         "n_estimators": [Interval(Integral, 1, None, closed="left")],
+         "learning_rate": [Interval(Real, 0, None, closed="neither")],
+         "random_state": ["random_state"],
+-        "base_estimator": [HasMethods(["fit", "predict"]), StrOptions({"deprecated"})],
++        "base_estimator": [HasMethods(["fit", "predict"]), StrOptions({"deprecated"}), None],
+     }
+ 
+     @abstractmethod
+@@ -581,8 +581,12 @@ class AdaBoostClassifier(ClassifierMixin, BaseWeightBoosting):
+ 
+         if iboost == 0:
+             self.classes_ = getattr(estimator, "classes_", None)
++            if self.classes_ is None:
++                raise ValueError("base_estimator cannot be None.")
+             self.n_classes_ = len(self.classes_)
+ 
++        if self.classes_ is None:
++            raise ValueError("base_estimator cannot be None.")
+         y_predict = self.classes_.take(np.argmax(y_predict_proba, axis=1), axis=0)
+ 
+         # Instances incorrectly classified
+@@ -640,6 +644,8 @@ class AdaBoostClassifier(ClassifierMixin, BaseWeightBoosting):
+ 
+         if iboost == 0:
+             self.classes_ = getattr(estimator, "classes_", None)
++            if self.classes_ is None:
++                raise ValueError("base_estimator cannot be None.")
+             self.n_classes_ = len(self.classes_)
+ 
+         # Instances incorrectly classified
+@@ -663,7 +669,7 @@ class AdaBoostClassifier(ClassifierMixin, BaseWeightBoosting):
+                     "ensemble is worse than random, ensemble "
+                     "can not be fit."
+                 )
+-            return None, None, None
++            return sample_weight, np.finfo(float).eps, estimator_error
+ 
+         # Boost weight using multi-class AdaBoost SAMME alg
+         estimator_weight = self.learning_rate * (
+@@ -697,6 +703,12 @@ class AdaBoostClassifier(ClassifierMixin, BaseWeightBoosting):
+         y : ndarray of shape (n_samples,)
+             The predicted classes.
+         """
++        check_is_fitted(self)
++        X = self._check_X(X)
++
++        if self.classes_ is None:
++            raise ValueError("The 'classes_' attribute is None. This method cannot be called before 'fit'.")
++
+         pred = self.decision_function(X)
+ 
+         if self.n_classes_ == 2:
+@@ -725,11 +737,15 @@ class AdaBoostClassifier(ClassifierMixin, BaseWeightBoosting):
+         y : generator of ndarray of shape (n_samples,)
+             The predicted classes.
+         """
++        check_is_fitted(self)
+         X = self._check_X(X)
+ 
+         n_classes = self.n_classes_
+         classes = self.classes_
+ 
++        if self.classes_ is None:
++            raise ValueError("The 'classes_' attribute is None. This method cannot be called before 'fit'.")
++
+         if n_classes == 2:
+             for pred in self.staged_decision_function(X):
+                 yield np.array(classes.take(pred > 0, axis=0))
+@@ -763,6 +779,9 @@ class AdaBoostClassifier(ClassifierMixin, BaseWeightBoosting):
+         n_classes = self.n_classes_
+         classes = self.classes_[:, np.newaxis]
+ 
++        if self.classes_ is None:
++            raise ValueError("The 'classes_' attribute is None. This method cannot be called before 'fit'.")
++
+         if self.algorithm == "SAMME.R":
+             # The weights are all 1. for SAMME.R
+             pred = sum(
+@@ -810,6 +829,9 @@ class AdaBoostClassifier(ClassifierMixin, BaseWeightBoosting):
+         pred = None
+         norm = 0.0
+ 
++        if self.classes_ is None:
++            raise ValueError("The 'classes_' attribute is None. This method cannot be called before 'fit'.")
++
+         for weight, estimator in zip(self.estimator_weights_, self.estimators_):
+             norm += weight
+ 
+@@ -1176,7 +1198,7 @@ class AdaBoostRegressor(RegressorMixin, BaseWeightBoosting):
+             # Discard current estimator only if it isn't the only one
+             if len(self.estimators_) > 1:
+                 self.estimators_.pop(-1)
+-            return None, None, None
++            return sample_weight, None, None
+ 
+         beta = estimator_error / (1.0 - estimator_error)
+ 

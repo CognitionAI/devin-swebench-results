@@ -1,0 +1,27 @@
+diff --git a/astropy/table/table.py b/astropy/table/table.py
+index 0d50cbdeb6..43ebc4360b 100644
+--- a/astropy/table/table.py
++++ b/astropy/table/table.py
+@@ -1067,18 +1067,10 @@ class Table:
+         """Support converting Table to np.array via np.array(table).
+ 
+         Coercion to a different dtype via np.array(table, dtype) is not
+-        supported and will raise a ValueError.
+-        """
+-        if dtype is not None:
+-            raise ValueError('Datatype coercion is not allowed')
+-
+-        # This limitation is because of the following unexpected result that
+-        # should have made a table copy while changing the column names.
+-        #
+-        # >>> d = astropy.table.Table([[1,2],[3,4]])
+-        # >>> np.array(d, dtype=[('a', 'i8'), ('b', 'i8')])
+-        # array([(0, 0), (0, 0)],
+-        #       dtype=[('a', '<i8'), ('b', '<i8')])
++        supported and will raise a ValueError, except for dtype=object.
++        """
++        if dtype is not None and dtype != object:
++            raise ValueError('Datatype coercion is not allowed except for dtype=object')
+ 
+         out = self.as_array()
+         return out.data if isinstance(out, np.ma.MaskedArray) else out

@@ -1,0 +1,66 @@
+diff --git a/django/urls/resolvers.py b/django/urls/resolvers.py
+index 674fd0c58e..6e7bd44dbc 100644
+--- a/django/urls/resolvers.py
++++ b/django/urls/resolvers.py
+@@ -620,8 +620,22 @@ class URLResolver:
+ 
+     @cached_property
+     def url_patterns(self):
+-        # urlconf_module might be a valid set of patterns, so we default to it
+-        patterns = getattr(self.urlconf_module, "urlpatterns", self.urlconf_module)
++        patterns = getattr(self.urlconf_module, "urlpatterns", None)
++        if patterns is None:
++            # Check for common misspellings
++            common_misspellings = ['urlspattern', 'urlpattern', 'urlpatterns']
++            for misspelling in common_misspellings:
++                if hasattr(self.urlconf_module, misspelling):
++                    raise ImproperlyConfigured(
++                        f"The included URLconf '{self.urlconf_name}' has a misspelling. "
++                        f"Did you mean 'urlpatterns' instead of '{misspelling}'?"
++                    )
++            # Original error message
++            raise ImproperlyConfigured(
++                f"The included URLconf '{self.urlconf_name}' does not appear to have any "
++                f"patterns in it. If you see valid patterns in the file then the issue is "
++                f"probably caused by a circular import."
++            )
+         try:
+             iter(patterns)
+         except TypeError as e:
+diff --git a/django/urls/test_urls.py b/django/urls/test_urls.py
+new file mode 100644
+index 0000000000..dd93cb6e9b
+--- /dev/null
++++ b/django/urls/test_urls.py
+@@ -0,0 +1,9 @@
++
++from django.urls import path
++
++def test_view(request):
++    pass
++
++urlspattern = [
++    path('test/', test_view, name='test'),
++]
+diff --git a/tests/i18n/sampleproject/sampleproject/settings.py b/tests/i18n/sampleproject/sampleproject/settings.py
+index e69de29bb2..7fe29d77fb 100644
+--- a/tests/i18n/sampleproject/sampleproject/settings.py
++++ b/tests/i18n/sampleproject/sampleproject/settings.py
+@@ -0,0 +1,17 @@
++# SECURITY WARNING: don't run with debug turned on in production!
++DEBUG = True
++
++ALLOWED_HOSTS = []
++
++# Application definition
++
++INSTALLED_APPS = [
++    # ... other installed applications ...
++]
++
++MIDDLEWARE = [
++    # ... middleware classes ...
++]
++
++# URL Configuration
++ROOT_URLCONF = 'django.urls.test_urls'

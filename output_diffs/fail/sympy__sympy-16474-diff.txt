@@ -1,0 +1,94 @@
+diff --git a/sympy/printing/latex.py b/sympy/printing/latex.py
+index 70ac656090..907c2ab488 100644
+--- a/sympy/printing/latex.py
++++ b/sympy/printing/latex.py
+@@ -1831,9 +1831,12 @@ def _print_Range(self, s):
+                 r"\right\}")
+ 
+     def _print_bernoulli(self, expr, exp=None):
+-        tex = r"B_{%s}" % self._print(expr.args[0])
++        m, x = (expr.args[0], None) if len(expr.args) == 1 else expr.args
++        tex = r"B_{%s}" % self._print(m)
+         if exp is not None:
+             tex = r"%s^{%s}" % (tex, self._print(exp))
++        if x is not None:
++            tex = r"%s\left(%s\right)" % (tex, self._print(x))
+         return tex
+ 
+     _print_bell = _print_bernoulli
+@@ -1884,7 +1887,7 @@ def _print_SeqFormula(self, s):
+ 
+     def _print_Interval(self, i):
+         if i.start == i.end:
+-            return r"\left\{%s\right\}" % self._print(i.start)
++            return r"\left\{%s\right}" % self._print(i.start)
+ 
+         else:
+             if i.left_open:
+@@ -2331,6 +2334,10 @@ def _print_primeomega(self, expr, exp=None):
+                 (self._print(expr.args[0]), self._print(exp))
+         return r'\Omega\left(%s\right)' % self._print(expr.args[0])
+ 
++    def _print_HadamardPower(self, expr):
++        base_latex = self._print(expr.base)
++        exp_latex = self._print(expr.exp)
++        return r"\circ^{%s}{%s}" % (exp_latex, base_latex)
+ 
+ def translate(s):
+     r'''
+diff --git a/sympy/printing/mathml.py b/sympy/printing/mathml.py
+index a0d72e83be..4c2e17317a 100644
+--- a/sympy/printing/mathml.py
++++ b/sympy/printing/mathml.py
+@@ -485,6 +485,10 @@ def _print_int(self, p):
+         dom_element.appendChild(self.dom.createTextNode(str(p)))
+         return dom_element
+ 
++    def _print_HadamardPower(self, expr):
++        base_mathml = self._print(expr.base)
++        exp_mathml = self._print(expr.exp)
++        return self._create_element('msup', base_mathml, exp_mathml)
+ 
+ class MathMLPresentationPrinter(MathMLPrinterBase):
+     """Prints an expression to the Presentation MathML markup language.
+diff --git a/sympy/printing/pretty/pretty.py b/sympy/printing/pretty/pretty.py
+index 7a3de33522..de3eae8b1d 100644
+--- a/sympy/printing/pretty/pretty.py
++++ b/sympy/printing/pretty/pretty.py
+@@ -876,9 +876,20 @@ def _print_MatPow(self, expr):
+     def _print_HadamardProduct(self, expr):
+         from sympy import MatAdd, MatMul
+         if self._use_unicode:
+-            delim = pretty_atom('Ring')
++            mul_delim = pretty_atom('Ring')
+         else:
+-            delim = '.*'
++            mul_delim = '.*'
++        if self._use_unicode:
++            div_delim = u" \u00F7 "
++        else:
++            div_delim = ' / '
++
++        args = expr.args
++        if any(isinstance(arg, HadamardPower) and arg.exp.is_negative for arg in args):
++            delim = div_delim
++        else:
++            delim = mul_delim
++
+         return self._print_seq(expr.args, None, None, delim,
+                 parenthesize=lambda x: isinstance(x, (MatAdd, MatMul)))
+ 
+@@ -2502,6 +2513,13 @@ def _print_AssignmentBase(self, e):
+         pform = prettyForm(*stringPict.next(l, op, r))
+         return pform
+ 
++    def _print_HadamardPower(self, expr):
++        base_pretty = self._print(expr.base)
++        exp_pretty = self._print(expr.exp)
++        if self._use_unicode:
++            return base_pretty**prettyForm(u"\u2299")**exp_pretty
++        else:
++            return base_pretty**prettyForm("**")**exp_pretty
+ 
+ def pretty(expr, **settings):
+     """Returns a string containing the prettified form of expr.

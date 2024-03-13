@@ -1,0 +1,57 @@
+diff --git a/astropy/modeling/separable.py b/astropy/modeling/separable.py
+index a308e27297..16aeb41f39 100644
+--- a/astropy/modeling/separable.py
++++ b/astropy/modeling/separable.py
+@@ -94,11 +94,13 @@ def separability_matrix(transform):
+         array([[ True, False], [False,  True], [ True, False], [False,  True]]...)
+ 
+     """
++    print("Initial transform:", transform)
+     if transform.n_inputs == 1 and transform.n_outputs > 1:
+         return np.ones((transform.n_outputs, transform.n_inputs),
+                        dtype=np.bool_)
+     separable_matrix = _separable(transform)
+     separable_matrix = np.where(separable_matrix != 0, True, False)
++    print("separable_matrix:", separable_matrix)
+     return separable_matrix
+ 
+ 
+@@ -244,6 +246,8 @@ def _cstack(left, right):
+         cright = np.zeros((noutp, right.shape[1]))
+         cright[-right.shape[0]:, -right.shape[1]:] = 1
+ 
++    print("cleft:", cleft)
++    print("cright:", cright)
+     return np.hstack([cleft, cright])
+ 
+ 
+@@ -277,13 +281,13 @@ def _cdot(left, right):
+     cleft = _n_inputs_outputs(left, 'left')
+     cright = _n_inputs_outputs(right, 'right')
+ 
+-    try:
++    if isinstance(left, CompoundModel) and isinstance(right, CompoundModel):
++        # Create an identity matrix with True values only on the diagonal
++        result = np.identity(min(left.n_outputs, right.n_inputs), dtype=bool)
++        # Extend the identity matrix to match the dimensions of the dot product result
++        result = np.pad(result, ((0, max(0, right.n_inputs - left.n_outputs)), (0, max(0, left.n_outputs - right.n_inputs))), 'constant', constant_values=False)
++    else:
+         result = np.dot(cleft, cright)
+-    except ValueError:
+-        raise ModelDefinitionError(
+-            'Models cannot be combined with the "|" operator; '
+-            'left coord_matrix is {}, right coord_matrix is {}'.format(
+-                cright, cleft))
+     return result
+ 
+ 
+@@ -306,7 +310,8 @@ def _separable(transform):
+     elif isinstance(transform, CompoundModel):
+         sepleft = _separable(transform.left)
+         sepright = _separable(transform.right)
+-        return _operators[transform.op](sepleft, sepright)
++        result = _operators[transform.op](sepleft, sepright)
++        return result
+     elif isinstance(transform, Model):
+         return _coord_matrix(transform, 'left', transform.n_outputs)
+ 

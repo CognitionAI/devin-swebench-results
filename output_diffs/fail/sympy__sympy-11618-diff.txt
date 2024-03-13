@@ -1,0 +1,18 @@
+diff --git a/sympy/geometry/point.py b/sympy/geometry/point.py
+index 593048464b..44606e0e17 100644
+--- a/sympy/geometry/point.py
++++ b/sympy/geometry/point.py
+@@ -266,8 +266,11 @@ def distance(self, p):
+         sqrt(x**2 + y**2)
+ 
+         """
+-        return sqrt(sum([(a - b)**2 for a, b in zip(
+-            self.args, p.args if isinstance(p, Point) else p)]))
++        # handle points with different dimensions
++        dim = max(len(self), len(p))
++        coords_self = self.args + (S.Zero,)*(dim - len(self))
++        coords_p = p.args + (S.Zero,)*(dim - len(p))
++        return sqrt(sum([(a - b)**2 for a, b in zip(coords_self, coords_p)]))
+ 
+     def taxicab_distance(self, p):
+         """The Taxicab Distance from self to point p.

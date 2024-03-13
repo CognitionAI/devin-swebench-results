@@ -1,0 +1,16 @@
+diff --git a/sklearn/utils/validation.py b/sklearn/utils/validation.py
+index d47c61202..c2ed3aeac 100644
+--- a/sklearn/utils/validation.py
++++ b/sklearn/utils/validation.py
+@@ -452,6 +452,11 @@ def check_array(array, accept_sparse=False, dtype="numeric", order=None,
+         else:
+             dtype = None
+ 
++    if dtype_numeric and array.dtype.kind == "O":
++        # Check if the input array contains strings
++        if any(isinstance(element, str) for element in np.nditer(array)):
++            raise ValueError("Input contains strings, which is not allowed for dtype='numeric'")
++
+     if isinstance(dtype, (list, tuple)):
+         if dtype_orig is not None and dtype_orig in dtype:
+             # no dtype conversion required

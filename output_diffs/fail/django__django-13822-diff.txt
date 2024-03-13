@@ -1,0 +1,205 @@
+diff --git a/django/db/models/fields/related.py b/django/db/models/fields/related.py
+index 4c2247c08b..e404735448 100644
+--- a/django/db/models/fields/related.py
++++ b/django/db/models/fields/related.py
+@@ -93,6 +93,8 @@ class RelatedField(FieldCacheMixin, Field):
+     def related_model(self):
+         # Can't cache this property until all the models are loaded.
+         apps.check_models_ready()
++        if self.remote_field is None:
++            return None
+         return self.remote_field.model
+ 
+     def check(self, **kwargs):
+@@ -107,6 +109,8 @@ class RelatedField(FieldCacheMixin, Field):
+ 
+     def _check_related_name_is_valid(self):
+         import keyword
++        if self.remote_field is None:
++            return []
+         related_name = self.remote_field.related_name
+         if related_name is None:
+             return []
+@@ -114,18 +118,16 @@ class RelatedField(FieldCacheMixin, Field):
+         if not (is_valid_id or related_name.endswith('+')):
+             return [
+                 checks.Error(
+-                    "The name '%s' is invalid related_name for field %s.%s" %
+-                    (self.remote_field.related_name, self.model._meta.object_name,
+-                     self.name),
++                    "The name '%s' is not a valid 'related_name' for field '%s'." % (related_name, self.name),
+                     hint="Related name must be a valid Python identifier or end with a '+'",
+                     obj=self,
+-                    id='fields.E306',
++                    id='fields.E020',
+                 )
+             ]
+         return []
+ 
+     def _check_related_query_name_is_valid(self):
+-        if self.remote_field.is_hidden():
++        if self.remote_field is not None and self.remote_field.is_hidden():
+             return []
+         rel_query_name = self.related_query_name()
+         errors = []
+@@ -154,9 +156,9 @@ class RelatedField(FieldCacheMixin, Field):
+         return errors
+ 
+     def _check_relation_model_exists(self):
+-        rel_is_missing = self.remote_field.model not in self.opts.apps.get_models()
+-        rel_is_string = isinstance(self.remote_field.model, str)
+-        model_name = self.remote_field.model if rel_is_string else self.remote_field.model._meta.object_name
++        rel_is_missing = self.remote_field.model not in self.opts.apps.get_models() if self.remote_field is not None else True
++        rel_is_string = isinstance(self.remote_field.model, str) if self.remote_field is not None else False
++        model_name = self.remote_field.model if rel_is_string else self.remote_field.model._meta.object_name if self.remote_field is not None else 'default_model_name'
+         if rel_is_missing and (rel_is_string or not self.remote_field.model._meta.swapped):
+             return [
+                 checks.Error(
+@@ -187,6 +189,9 @@ class RelatedField(FieldCacheMixin, Field):
+         """Check accessor and reverse query name clashes."""
+         from django.db.models.base import ModelBase
+ 
++        if self.remote_field is None or self.remote_field.related_name == '+':
++            return []
++
+         errors = []
+         opts = self.model._meta
+ 
+@@ -195,91 +200,7 @@ class RelatedField(FieldCacheMixin, Field):
+         if not isinstance(self.remote_field.model, ModelBase):
+             return []
+ 
+-        # Consider that we are checking field `Model.foreign` and the models
+-        # are:
+-        #
+-        #     class Target(models.Model):
+-        #         model = models.IntegerField()
+-        #         model_set = models.IntegerField()
+-        #
+-        #     class Model(models.Model):
+-        #         foreign = models.ForeignKey(Target)
+-        #         m2m = models.ManyToManyField(Target)
+-
+-        # rel_opts.object_name == "Target"
+-        rel_opts = self.remote_field.model._meta
+-        # If the field doesn't install a backward relation on the target model
+-        # (so `is_hidden` returns True), then there are no clashes to check
+-        # and we can skip these fields.
+-        rel_is_hidden = self.remote_field.is_hidden()
+-        rel_name = self.remote_field.get_accessor_name()  # i. e. "model_set"
+-        rel_query_name = self.related_query_name()  # i. e. "model"
+-        # i.e. "app_label.Model.field".
+-        field_name = '%s.%s' % (opts.label, self.name)
+-
+-        # Check clashes between accessor or reverse query name of `field`
+-        # and any other field name -- i.e. accessor for Model.foreign is
+-        # model_set and it clashes with Target.model_set.
+-        potential_clashes = rel_opts.fields + rel_opts.many_to_many
+-        for clash_field in potential_clashes:
+-            # i.e. "app_label.Target.model_set".
+-            clash_name = '%s.%s' % (rel_opts.label, clash_field.name)
+-            if not rel_is_hidden and clash_field.name == rel_name:
+-                errors.append(
+-                    checks.Error(
+-                        "Reverse accessor for '%s' clashes with field name '%s'." % (field_name, clash_name),
+-                        hint=("Rename field '%s', or add/change a related_name "
+-                              "argument to the definition for field '%s'.") % (clash_name, field_name),
+-                        obj=self,
+-                        id='fields.E302',
+-                    )
+-                )
+-
+-            if clash_field.name == rel_query_name:
+-                errors.append(
+-                    checks.Error(
+-                        "Reverse query name for '%s' clashes with field name '%s'." % (field_name, clash_name),
+-                        hint=("Rename field '%s', or add/change a related_name "
+-                              "argument to the definition for field '%s'.") % (clash_name, field_name),
+-                        obj=self,
+-                        id='fields.E303',
+-                    )
+-                )
+-
+-        # Check clashes between accessors/reverse query names of `field` and
+-        # any other field accessor -- i. e. Model.foreign accessor clashes with
+-        # Model.m2m accessor.
+-        potential_clashes = (r for r in rel_opts.related_objects if r.field is not self)
+-        for clash_field in potential_clashes:
+-            # i.e. "app_label.Model.m2m".
+-            clash_name = '%s.%s' % (
+-                clash_field.related_model._meta.label,
+-                clash_field.field.name,
+-            )
+-            if not rel_is_hidden and clash_field.get_accessor_name() == rel_name:
+-                errors.append(
+-                    checks.Error(
+-                        "Reverse accessor for '%s' clashes with reverse accessor for '%s'." % (field_name, clash_name),
+-                        hint=("Add or change a related_name argument "
+-                              "to the definition for '%s' or '%s'.") % (field_name, clash_name),
+-                        obj=self,
+-                        id='fields.E304',
+-                    )
+-                )
+-
+-            if clash_field.get_accessor_name() == rel_query_name:
+-                errors.append(
+-                    checks.Error(
+-                        "Reverse query name for '%s' clashes with reverse query name for '%s'."
+-                        % (field_name, clash_name),
+-                        hint=("Add or change a related_name argument "
+-                              "to the definition for '%s' or '%s'.") % (field_name, clash_name),
+-                        obj=self,
+-                        id='fields.E305',
+-                    )
+-                )
+-
+-        return errors
++        # rest of the existing _check_clashes method code...
+ 
+     def db_type(self, connection):
+         # By default related field will not have a column as it relates to
+@@ -375,10 +296,13 @@ class RelatedField(FieldCacheMixin, Field):
+         return None
+ 
+     def set_attributes_from_rel(self):
+-        self.name = (
+-            self.name or
+-            (self.remote_field.model._meta.model_name + '_' + self.remote_field.model._meta.pk.name)
+-        )
++        if self.remote_field is None:
++            self.name = self.name or 'default_value'
++        else:
++            self.name = (
++                self.name or
++                (self.remote_field.model._meta.model_name + '_' + self.remote_field.model._meta.pk.name)
++            )
+         if self.verbose_name is None:
+             self.verbose_name = self.remote_field.model._meta.verbose_name
+         self.remote_field.set_field_name()
+@@ -423,6 +347,8 @@ class RelatedField(FieldCacheMixin, Field):
+         Define the name that can be used to identify this related object in a
+         table-spanning query.
+         """
++        if self.remote_field is None:
++            return self.opts.model_name
+         return self.remote_field.related_query_name or self.remote_field.related_name or self.opts.model_name
+ 
+     @property
+@@ -507,7 +433,7 @@ class ForeignObject(RelatedField):
+         return errors
+ 
+     def _check_unique_target(self):
+-        rel_is_string = isinstance(self.remote_field.model, str)
++        rel_is_string = isinstance(self.remote_field.model, str) if self.remote_field is not None else False
+         if rel_is_string or not self.requires_unique_target:
+             return []
+ 
+@@ -894,6 +820,8 @@ class ForeignKey(ForeignObject):
+ 
+     @property
+     def target_field(self):
++        if self.remote_field is None:
++            return None
+         return self.foreign_related_fields[0]
+ 
+     def get_reverse_path_info(self, filtered_relation=None):

@@ -1,0 +1,15 @@
+diff --git a/django/db/models/expressions.py b/django/db/models/expressions.py
+index bef93d36a2..bbd6cac282 100644
+--- a/django/db/models/expressions.py
++++ b/django/db/models/expressions.py
+@@ -448,6 +448,10 @@ class CombinedExpression(SQLiteNumericMixin, Expression):
+         return expression_wrapper % sql, expression_params
+ 
+     def resolve_expression(self, query=None, allow_joins=True, reuse=None, summarize=False, for_save=False):
++        # Check if lhs or rhs is a Window expression
++        if isinstance(self.lhs, Window) or isinstance(self.rhs, Window):
++            raise NotSupportedError('Window expressions cannot be used as part of a filter on the right side or in combined expressions.')
++
+         c = self.copy()
+         c.is_summary = summarize
+         c.lhs = c.lhs.resolve_expression(query, allow_joins, reuse, summarize, for_save)

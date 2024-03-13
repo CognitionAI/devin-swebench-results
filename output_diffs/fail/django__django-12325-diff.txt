@@ -1,0 +1,61 @@
+diff --git a/django/db/models/options.py b/django/db/models/options.py
+index a375f6ba1d..f729fce6e5 100644
+--- a/django/db/models/options.py
++++ b/django/db/models/options.py
+@@ -240,12 +240,16 @@ class Options:
+ 
+         if self.pk is None:
+             if self.parents:
+-                # Promote the first parent link in lieu of adding yet another
+-                # field.
+-                field = next(iter(self.parents.values()))
+-                # Look for a local field with the same name as the
+-                # first parent link. If a local field has already been
+-                # created, use it instead of promoting the parent
++                # Find the parent link with parent_link=True or take the first parent link
++                field = None
++                for parent_field in self.parents.values():
++                    if parent_field.remote_field.parent_link:
++                        field = parent_field
++                        break
++                if field is None:
++                    field = next(iter(self.parents.values()))
++
++                # Check if a local field with the same name as the parent link has already been created
+                 already_created = [fld for fld in self.local_fields if fld.name == field.name]
+                 if already_created:
+                     field = already_created[0]
+@@ -396,15 +400,7 @@ class Options:
+                     break
+ 
+         if base_manager_name:
+-            try:
+-                return self.managers_map[base_manager_name]
+-            except KeyError:
+-                raise ValueError(
+-                    "%s has no manager named %r" % (
+-                        self.object_name,
+-                        base_manager_name,
+-                    )
+-                )
++            return self.managers_map[base_manager_name]
+ 
+         manager = Manager()
+         manager.name = '_base_manager'
+@@ -423,15 +419,7 @@ class Options:
+                     break
+ 
+         if default_manager_name:
+-            try:
+-                return self.managers_map[default_manager_name]
+-            except KeyError:
+-                raise ValueError(
+-                    "%s has no manager named %r" % (
+-                        self.object_name,
+-                        default_manager_name,
+-                    )
+-                )
++            return self.managers_map[default_manager_name]
+ 
+         if self.managers:
+             return self.managers[0]

@@ -1,0 +1,28 @@
+diff --git a/django/db/models/query.py b/django/db/models/query.py
+index 0cebcc70d6..a2ed33a7c0 100644
+--- a/django/db/models/query.py
++++ b/django/db/models/query.py
+@@ -1765,7 +1765,7 @@ class RawQuerySet:
+         annotation_fields = [
+             (column, pos)
+             for pos, column in enumerate(self.columns)
+-            if column not in self.model_fields
++            if column not in model_fields
+         ]
+         model_init_order = [
+             self.columns.index(converter(f.column)) for f in model_init_fields
+diff --git a/django/db/models/query_utils.py b/django/db/models/query_utils.py
+index 6ea82b6520..185d23b334 100644
+--- a/django/db/models/query_utils.py
++++ b/django/db/models/query_utils.py
+@@ -70,6 +70,10 @@ class Q(tree.Node):
+     def __and__(self, other):
+         return self._combine(other, self.AND)
+ 
++    def __xor__(self, other):
++        # XOR operation: (A and not B) or (not A and B)
++        return (self & ~other) | (~self & other)
++
+     def __invert__(self):
+         obj = type(self)()
+         obj.add(self, self.AND)

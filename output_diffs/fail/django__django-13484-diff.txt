@@ -1,0 +1,58 @@
+diff --git a/django/db/models/query.py b/django/db/models/query.py
+index 8d888447cd..2bcb0c7594 100644
+--- a/django/db/models/query.py
++++ b/django/db/models/query.py
+@@ -1112,7 +1112,9 @@ class QuerySet:
+                 raise ValueError("The annotation '%s' conflicts with a field on "
+                                  "the model." % alias)
+             if isinstance(annotation, FilteredRelation):
++                print("Adding FilteredRelation:", alias, annotation)
+                 clone.query.add_filtered_relation(annotation, alias)
++                print("Query table map after adding FilteredRelation:", clone.query.table_map)
+             else:
+                 clone.query.add_annotation(
+                     annotation, alias, is_summary=False, select=select,
+diff --git a/django/db/models/sql/query.py b/django/db/models/sql/query.py
+index 4648daf395..1936a9e2d8 100644
+--- a/django/db/models/sql/query.py
++++ b/django/db/models/sql/query.py
+@@ -288,7 +288,7 @@ class Query(BaseExpression):
+     def clone(self):
+         """
+         Return a copy of the current Query. A lightweight alternative to
+-        to deepcopy().
++        deepcopy().
+         """
+         obj = Empty()
+         obj.__class__ = self.__class__
+@@ -317,23 +317,13 @@ class Query(BaseExpression):
+             obj.extra_select_mask = None
+         else:
+             obj.extra_select_mask = self.extra_select_mask.copy()
+-        if self._extra_select_cache is None:
+-            obj._extra_select_cache = None
+-        else:
+-            obj._extra_select_cache = self._extra_select_cache.copy()
+-        if self.select_related is not False:
+-            # Use deepcopy because select_related stores fields in nested
+-            # dicts.
+-            obj.select_related = copy.deepcopy(obj.select_related)
+-        if 'subq_aliases' in self.__dict__:
+-            obj.subq_aliases = self.subq_aliases.copy()
+-        obj.used_aliases = self.used_aliases.copy()
+-        obj._filtered_relations = self._filtered_relations.copy()
+-        # Clear the cached_property
+-        try:
+-            del obj.base_table
+-        except AttributeError:
+-            pass
++        # Ensure that the alias maps are correctly restored to their state
++        # at the time of serialization to prevent incorrect aliasing.
++        if hasattr(self, '_state'):
++            if 'alias_map' in self._state:
++                obj.alias_map = self._state['alias_map'].copy()
++            if 'table_map' in self._state:
++                obj.table_map = self._state['table_map'].copy()
+         return obj
+ 
+     def chain(self, klass=None):

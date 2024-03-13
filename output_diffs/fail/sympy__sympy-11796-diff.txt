@@ -1,0 +1,61 @@
+diff --git a/sympy/sets/sets.py b/sympy/sets/sets.py
+index e365706749..485dc9fcdf 100644
+--- a/sympy/sets/sets.py
++++ b/sympy/sets/sets.py
+@@ -712,6 +712,8 @@ class Interval(Set, EvalfMixin):
+ 
+     def __new__(cls, start, end, left_open=False, right_open=False):
+ 
++        print(f"Received start: {start}, end: {end}")
++
+         start = _sympify(start)
+         end = _sympify(end)
+         left_open = _sympify(left_open)
+@@ -730,11 +732,14 @@ def __new__(cls, start, end, left_open=False, right_open=False):
+ 
+         # evaluate if possible
+         if (end < start) == True:
++            print(f"Interval.__new__ called with start={start}, end={end}, left_open={left_open}, right_open={right_open}")
+             return S.EmptySet
+         elif (end - start).is_negative:
++            print(f"Interval.__new__ called with start={start}, end={end}, left_open={left_open}, right_open={right_open}")
+             return S.EmptySet
+ 
+         if end == start and (left_open or right_open):
++            print(f"Interval.__new__ called with start={start}, end={end}, left_open={left_open}, right_open={right_open}")
+             return S.EmptySet
+         if end == start and not (left_open or right_open):
+             return FiniteSet(end)
+@@ -745,6 +750,7 @@ def __new__(cls, start, end, left_open=False, right_open=False):
+         if end == S.Infinity:
+             right_open = true
+ 
++        print(f"Interval.__new__ called with start={start}, end={end}, left_open={left_open}, right_open={right_open}")
+         return Basic.__new__(cls, start, end, left_open, right_open)
+ 
+     @property
+@@ -835,6 +841,8 @@ def right_open(self):
+         return self._args[3]
+ 
+     def _intersect(self, other):
++        start = None
++        end = None
+         """
+         This function should only be used internally
+ 
+@@ -885,6 +893,7 @@ def _intersect(self, other):
+             empty = True
+ 
+         if empty:
++            print(f"Interval.__new__ called with start={start}, end={end}, left_open={left_open}, right_open={right_open}")
+             return S.EmptySet
+ 
+         return Interval(start, end, left_open, right_open)
+@@ -930,6 +939,7 @@ def _union(self, other):
+                 right_open = ((self.end != end or self.right_open) and
+                               (other.end != end or other.right_open))
+ 
++                print(f"Creating new Interval with start={start}, end={end}, left_open={left_open}, right_open={right_open}")
+                 return Interval(start, end, left_open, right_open)
+ 
+         # If I have open end points and these endpoints are contained in other.

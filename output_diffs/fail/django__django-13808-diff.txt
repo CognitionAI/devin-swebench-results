@@ -1,0 +1,92 @@
+diff --git a/django/db/backends/postgresql/base.py b/django/db/backends/postgresql/base.py
+index 9eac005dd1..c86ab6abff 100644
+--- a/django/db/backends/postgresql/base.py
++++ b/django/db/backends/postgresql/base.py
+@@ -36,8 +36,8 @@ def psycopg2_version():
+ 
+ PSYCOPG2_VERSION = psycopg2_version()
+ 
+-if PSYCOPG2_VERSION < (2, 5, 4):
+-    raise ImproperlyConfigured("psycopg2_version 2.5.4 or newer is required; you have %s" % psycopg2.__version__)
++if psycopg2_version() < (2, 5, 4):
++    raise ImproperlyConfigured("psycopg2_version 2.5.4 or newer is required; you have %s" % '.'.join(map(str, psycopg2_version())))
+ 
+ 
+ # Some of these import psycopg2, so import them after checking if it's installed.
+@@ -151,34 +151,35 @@ class DatabaseWrapper(BaseDatabaseWrapper):
+ 
+     def get_connection_params(self):
+         settings_dict = self.settings_dict
+-        # None may be used to connect to the default 'postgres' db
+-        if settings_dict['NAME'] == '':
+-            raise ImproperlyConfigured(
+-                "settings.DATABASES is improperly configured. "
+-                "Please supply the NAME value.")
+-        if len(settings_dict['NAME'] or '') > self.ops.max_name_length():
+-            raise ImproperlyConfigured(
+-                "The database name '%s' (%d characters) is longer than "
+-                "PostgreSQL's limit of %d characters. Supply a shorter NAME "
+-                "in settings.DATABASES." % (
+-                    settings_dict['NAME'],
+-                    len(settings_dict['NAME']),
+-                    self.ops.max_name_length(),
++        conn_params = settings_dict['OPTIONS'].copy()  # Start with the options dictionary
++        if 'service' in conn_params:
++            # If 'service' is provided, we don't need 'NAME', 'USER', 'PASSWORD', 'HOST', or 'PORT'
++            conn_params.pop('isolation_level', None)  # Remove 'isolation_level' if present, as it's handled separately
++        else:
++            # The 'service' key is not provided, so we proceed with the usual parameters
++            if settings_dict['NAME'] == '':
++                raise ImproperlyConfigured(
++                    "settings.DATABASES is improperly configured. "
++                    "Please supply the NAME value.")
++            if len(settings_dict['NAME'] or '') > self.ops.max_name_length():
++                raise ImproperlyConfigured(
++                    "The database name '%s' (%d characters) is longer than "
++                    "PostgreSQL's limit of %d characters. Supply a shorter NAME "
++                    "in settings.DATABASES." % (
++                        settings_dict['NAME'],
++                        len(settings_dict['NAME']),
++                        self.ops.max_name_length(),
++                    )
+                 )
+-            )
+-        conn_params = {
+-            'database': settings_dict['NAME'] or 'postgres',
+-            **settings_dict['OPTIONS'],
+-        }
+-        conn_params.pop('isolation_level', None)
+-        if settings_dict['USER']:
+-            conn_params['user'] = settings_dict['USER']
+-        if settings_dict['PASSWORD']:
+-            conn_params['password'] = settings_dict['PASSWORD']
+-        if settings_dict['HOST']:
+-            conn_params['host'] = settings_dict['HOST']
+-        if settings_dict['PORT']:
+-            conn_params['port'] = settings_dict['PORT']
++            conn_params['database'] = settings_dict['NAME'] or 'postgres'
++            if settings_dict['USER']:
++                conn_params['user'] = settings_dict['USER']
++            if settings_dict['PASSWORD']:
++                conn_params['password'] = settings_dict['PASSWORD']
++            if settings_dict['HOST']:
++                conn_params['host'] = settings_dict['HOST']
++            if settings_dict['PORT']:
++                conn_params['port'] = settings_dict['PORT']
+         return conn_params
+ 
+     @async_unsafe
+@@ -248,12 +249,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
+         # For now, it's here so that every use of "threading" is
+         # also async-compatible.
+         try:
+-            if hasattr(asyncio, 'current_task'):
+-                # Python 3.7 and up
+-                current_task = asyncio.current_task()
+-            else:
+-                # Python 3.6
+-                current_task = asyncio.Task.current_task()
++            current_task = asyncio.current_task()
+         except RuntimeError:
+             current_task = None
+         # Current task can be none even if the current_task call didn't error

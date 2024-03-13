@@ -1,0 +1,56 @@
+diff --git a/setup.py b/setup.py
+index a427d5493..d29c9a338 100644
+--- a/setup.py
++++ b/setup.py
+@@ -21,7 +21,7 @@ install_requires = [
+     'sphinxcontrib-htmlhelp',
+     'sphinxcontrib-serializinghtml',
+     'sphinxcontrib-qthelp',
+-    'Jinja2>=2.3',
++    'Jinja2<3.1',
+     'Pygments>=2.0',
+     'docutils>=0.12',
+     'snowballstemmer>=1.1',
+diff --git a/sphinx/domains/python.py b/sphinx/domains/python.py
+index 39c7de142..6ff0fd084 100644
+--- a/sphinx/domains/python.py
++++ b/sphinx/domains/python.py
+@@ -299,11 +299,20 @@ class PyTypedField(PyXrefMixin, TypedField):
+     def make_xref(self, rolename: str, domain: str, target: str,
+                   innernode: "Type[TextlikeNode]" = nodes.emphasis,
+                   contnode: Node = None, env: BuildEnvironment = None) -> Node:
+-        if rolename == 'class' and target == 'None':
+-            # None is not a type, so use obj role instead.
+-            rolename = 'obj'
+-
+-        return super().make_xref(rolename, domain, target, innernode, contnode, env)
++        if rolename == 'type':
++            xref_node = addnodes.pending_xref(
++                '',
++                refdomain='py',
++                reftype='class',
++                reftarget=target,
++                refexplicit=False,
++                refwarn=True
++            )
++            xref_node += nodes.Text(target)
++            return xref_node
++        else:
++            # existing code for other roles
++            return super().make_xref(rolename, domain, target, innernode, contnode, env)
+ 
+ 
+ class PyObject(ObjectDescription):
+diff --git a/tox.ini b/tox.ini
+index d9f040544..bf39854b6 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -28,7 +28,7 @@ extras =
+ setenv =
+     PYTHONWARNINGS = all,ignore::ImportWarning:importlib._bootstrap_external,ignore::DeprecationWarning:site,ignore::DeprecationWarning:distutils
+ commands=
+-    pytest --durations 25 {posargs}
++    pytest -rA --durations 25 {posargs}
+ 
+ [testenv:flake8]
+ basepython = python3

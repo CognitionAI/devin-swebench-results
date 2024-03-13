@@ -1,0 +1,35 @@
+diff --git a/django/http/request.py b/django/http/request.py
+index 790e4546d7..9c409573c4 100644
+--- a/django/http/request.py
++++ b/django/http/request.py
+@@ -1,6 +1,7 @@
+ import cgi
+ import codecs
+ import copy
++import warnings
+ from io import BytesIO
+ from itertools import chain
+ from urllib.parse import quote, urlencode, urljoin, urlsplit
+@@ -256,6 +257,22 @@ class HttpRequest:
+         return self.scheme == 'https'
+ 
+     def is_ajax(self):
++        """
++        Returns True if the request was made via an XMLHttpRequest, by checking the
++        HTTP_X_REQUESTED_WITH header for the string 'XMLHttpRequest'.
++
++        As of Django 3.1, this method is deprecated in favor of checking the
++        'Accept' header.
++
++        Example:
++            if 'application/json' in request.headers.get('Accept'):
++                # Handle AJAX request
++                ...
++        """
++        warnings.warn(
++            'HttpRequest.is_ajax() is deprecated. Check the `Accept` header instead.',
++            DeprecationWarning
++        )
+         return self.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest'
+ 
+     @property

@@ -1,0 +1,26 @@
+diff --git a/seaborn/axisgrid.py b/seaborn/axisgrid.py
+index 12e5bdeb..a8b0f00a 100644
+--- a/seaborn/axisgrid.py
++++ b/seaborn/axisgrid.py
+@@ -1656,12 +1656,19 @@ class PairGrid(Grid):
+ 
+         self._update_legend_data(ax)
+ 
+-    def _add_axis_labels(self):
+-        """Add labels to the left and bottom Axes."""
++    def _add_axis_labels(self, wrap=None):
++        """Add labels to the left and bottom Axes, and handle wrapped subplots."""
++        # Set x-axis labels for the bottom row
+         for ax, label in zip(self.axes[-1, :], self.x_vars):
+             ax.set_xlabel(label)
++        # Set y-axis labels for the leftmost column
+         for ax, label in zip(self.axes[:, 0], self.y_vars):
+             ax.set_ylabel(label)
++        # If wrap is specified, adjust the x-axis labels for the top subplots
++        if wrap is not None:
++            for ax, label in zip(self.axes[wrap-1, :], self.x_vars):
++                ax.set_xlabel(label)
++                ax.xaxis.label.set_visible(True)
+ 
+     def _find_numeric_cols(self, data):
+         """Find which variables in a DataFrame are numeric."""

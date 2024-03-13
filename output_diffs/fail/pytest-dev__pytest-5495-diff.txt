@@ -1,0 +1,15 @@
+diff --git a/src/_pytest/assertion/rewrite.py b/src/_pytest/assertion/rewrite.py
+index f50d8200e..37e12b753 100644
+--- a/src/_pytest/assertion/rewrite.py
++++ b/src/_pytest/assertion/rewrite.py
+@@ -868,6 +868,10 @@ warn_explicit(
+         results = [left_res]
+         for i, op, next_operand in it:
+             next_res, next_expl = self.visit(next_operand)
++            # Added check for byte string operands in comparisons to improve error message readability.
++            # This ensures that byte strings are displayed as literals (e.g., b'...') instead of ASCII values.
++            if isinstance(next_operand, ast.Bytes):
++                next_expl = "b'{}'".format(repr(next_operand.s)[2:-1])
+             if isinstance(next_operand, (ast.Compare, ast.BoolOp)):
+                 next_expl = "({})".format(next_expl)
+             results.append(next_res)

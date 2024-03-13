@@ -1,0 +1,31 @@
+diff --git a/sklearn/ensemble/weight_boosting.py b/sklearn/ensemble/weight_boosting.py
+index f82a0d882..5ed7b57dc 100644
+--- a/sklearn/ensemble/weight_boosting.py
++++ b/sklearn/ensemble/weight_boosting.py
+@@ -106,8 +106,8 @@ class BaseWeightBoosting(BaseEnsemble, metaclass=ABCMeta):
+             dtype = None
+             accept_sparse = ['csr', 'csc']
+ 
+-        X, y = check_X_y(X, y, accept_sparse=accept_sparse, dtype=dtype,
+-                         y_numeric=is_regressor(self))
++        # In the fit method, remove dtype enforcement and allow base estimator to handle input validation
++        X, y = check_X_y(X, y, accept_sparse=True, dtype="numeric", y_numeric=is_regressor(self))
+ 
+         if sample_weight is None:
+             # Initialize weights to 1 / n_samples
+@@ -261,14 +261,7 @@ class BaseWeightBoosting(BaseEnsemble, metaclass=ABCMeta):
+ 
+     def _validate_X_predict(self, X):
+         """Ensure that X is in the proper format"""
+-        if (self.base_estimator is None or
+-                isinstance(self.base_estimator,
+-                           (BaseDecisionTree, BaseForest))):
+-            X = check_array(X, accept_sparse='csr', dtype=DTYPE)
+-
+-        else:
+-            X = check_array(X, accept_sparse=['csr', 'csc', 'coo'])
+-
++        X = check_array(X, accept_sparse=True, dtype="numeric")
+         return X
+ 
+ 

@@ -1,0 +1,14 @@
+diff --git a/src/flask/blueprints.py b/src/flask/blueprints.py
+index 5fb84d86..34832dff 100644
+--- a/src/flask/blueprints.py
++++ b/src/flask/blueprints.py
+@@ -265,6 +265,9 @@ class Blueprint(Scaffold):
+         :param first_registration: Whether this is the first time this
+             blueprint has been registered on the application.
+         """
++        if '.' in self.name:
++            raise ValueError(f"Blueprint names cannot contain dots. Found '{self.name}'.")
++
+         first_registration = False
+ 
+         if self.name in app.blueprints:

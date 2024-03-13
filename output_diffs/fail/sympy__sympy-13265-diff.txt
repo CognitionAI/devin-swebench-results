@@ -1,0 +1,22 @@
+diff --git a/sympy/simplify/trigsimp.py b/sympy/simplify/trigsimp.py
+index 69f03cc98e..abb756e4d5 100644
+--- a/sympy/simplify/trigsimp.py
++++ b/sympy/simplify/trigsimp.py
+@@ -539,7 +539,16 @@ def exp_trig(e):
+         # functions
+         choices = [e]
+         if e.has(*_trigs):
+-            choices.append(e.rewrite(exp))
++            exp_rewrite = e.rewrite(exp)
++            if exp_rewrite.has(I):
++                # Check if the expression can be simplified to a form
++                # that does not contain I (imaginary unit), which would
++                # indicate a simplification of an exponential form of sin
++                no_I_simplified = exp_rewrite.simplify().subs(I, 0)
++                if no_I_simplified != exp_rewrite:
++                    choices.append(no_I_simplified)
++            else:
++                choices.append(exp_rewrite)
+         choices.append(e.rewrite(cos))
+         return min(*choices, key=count_ops)
+     newexpr = bottom_up(expr, exp_trig)

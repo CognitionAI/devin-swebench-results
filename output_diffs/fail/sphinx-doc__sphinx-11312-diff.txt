@@ -1,0 +1,45 @@
+diff --git a/sphinx/util/inspect.py b/sphinx/util/inspect.py
+index 986419da9..839362a41 100644
+--- a/sphinx/util/inspect.py
++++ b/sphinx/util/inspect.py
+@@ -363,20 +363,23 @@ def object_description(object: Any) -> str:
+                      for key in sorted_keys)
+             return "{%s}" % ", ".join(items)
+     elif isinstance(object, set):
++        # To ensure deterministic ordering of set elements across different builds,
++        # the elements are sorted based on their string representation before joining.
+         try:
+-            sorted_values = sorted(object)
++            sorted_values = sorted(object, key=lambda x: str(x))
+         except TypeError:
+             pass  # Cannot sort set values, fall back to generic repr
+         else:
+             return "{%s}" % ", ".join(object_description(x) for x in sorted_values)
+     elif isinstance(object, frozenset):
++        # To ensure deterministic ordering of set elements across different builds,
++        # the elements are sorted based on their string representation before joining.
+         try:
+-            sorted_values = sorted(object)
++            sorted_values = sorted(object, key=lambda x: str(x))
+         except TypeError:
+             pass  # Cannot sort frozenset values, fall back to generic repr
+         else:
+-            return "frozenset({%s})" % ", ".join(object_description(x)
+-                                                 for x in sorted_values)
++            return "frozenset({%s})" % ", ".join(object_description(x) for x in sorted_values)
+     elif isinstance(object, enum.Enum):
+         return f"{object.__class__.__name__}.{object.name}"
+ 
+diff --git a/tox.ini b/tox.ini
+index a3dc56211..c76147de3 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -24,7 +24,7 @@ setenv =
+     PYTHONWARNINGS = error
+     PYTEST_ADDOPTS = {env:PYTEST_ADDOPTS:} --color yes
+ commands=
+-    python -X dev -X warn_default_encoding -m pytest --durations 25 {posargs}
++    python -X dev -X warn_default_encoding -m pytest -rA --durations 25 {posargs}
+ 
+ [testenv:docs]
+ basepython = python3

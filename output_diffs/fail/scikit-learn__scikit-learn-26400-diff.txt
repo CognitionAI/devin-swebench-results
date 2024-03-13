@@ -1,0 +1,16 @@
+diff --git a/sklearn/preprocessing/_data.py b/sklearn/preprocessing/_data.py
+index deaf14227..0a29900ad 100644
+--- a/sklearn/preprocessing/_data.py
++++ b/sklearn/preprocessing/_data.py
+@@ -3155,7 +3155,10 @@ class PowerTransformer(OneToOneFeatureMixin, TransformerMixin, BaseEstimator):
+             "yeo-johnson": self._yeo_johnson_optimize,
+         }[self.method]
+         with np.errstate(invalid="ignore"):  # hide NaN warnings
+-            self.lambdas_ = np.array([optim_function(col) for col in X.T])
++            self.lambdas_ = np.array([
++                np.nan if np.isnan(col).all() else optim_function(col)
++                for col in X.T
++            ])
+ 
+         if self.standardize or force_transform:
+             transform_function = {

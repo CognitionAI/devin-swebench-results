@@ -1,0 +1,21 @@
+diff --git a/django/views/decorators/debug.py b/django/views/decorators/debug.py
+index 42a6d32661..366a04f9f2 100644
+--- a/django/views/decorators/debug.py
++++ b/django/views/decorators/debug.py
+@@ -27,12 +27,12 @@ def sensitive_variables(*variables):
+             ...
+     """
+     def decorator(func):
++        if variables:
++            func.sensitive_variables = variables
++        else:
++            func.sensitive_variables = '__ALL__'
+         @functools.wraps(func)
+         def sensitive_variables_wrapper(*func_args, **func_kwargs):
+-            if variables:
+-                sensitive_variables_wrapper.sensitive_variables = variables
+-            else:
+-                sensitive_variables_wrapper.sensitive_variables = '__ALL__'
+             return func(*func_args, **func_kwargs)
+         return sensitive_variables_wrapper
+     return decorator

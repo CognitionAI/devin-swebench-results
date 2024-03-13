@@ -1,0 +1,21 @@
+diff --git a/lib/matplotlib/figure.py b/lib/matplotlib/figure.py
+index 2454776370..cfbd8c21e3 100644
+--- a/lib/matplotlib/figure.py
++++ b/lib/matplotlib/figure.py
+@@ -2817,9 +2817,13 @@ class Figure(FigureBase):
+         Draw the figure with no output.  Useful to get the final size of
+         artists that require a draw before their size is known (e.g. text).
+         """
+-        renderer = _get_renderer(self)
+-        with renderer._draw_disabled():
+-            self.draw(renderer)
++        # Check if the inline backend is being used, which requires rendering
++        if 'inline' in matplotlib.get_backend():
++            self.canvas.draw()
++        else:
++            renderer = _get_renderer(self)
++            with renderer._draw_disabled():
++                self.draw(renderer)
+ 
+     def draw_artist(self, a):
+         """

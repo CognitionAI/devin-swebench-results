@@ -1,0 +1,22 @@
+diff --git a/django/db/models/fields/related.py b/django/db/models/fields/related.py
+index 1e54bd6c6e..08cf8a3ebf 100644
+--- a/django/db/models/fields/related.py
++++ b/django/db/models/fields/related.py
+@@ -1235,17 +1235,6 @@ class ManyToManyField(RelatedField):
+             relationship_model_name = self.remote_field.through._meta.object_name
+             self_referential = from_model == to_model
+ 
+-            # Check symmetrical attribute.
+-            if (self_referential and self.remote_field.symmetrical and
+-                    not self.remote_field.through._meta.auto_created):
+-                errors.append(
+-                    checks.Error(
+-                        'Many-to-many fields with intermediate tables must not be symmetrical.',
+-                        obj=self,
+-                        id='fields.E332',
+-                    )
+-                )
+-
+             # Count foreign keys in intermediate model
+             if self_referential:
+                 seen_self = sum(

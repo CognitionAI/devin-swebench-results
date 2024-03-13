@@ -1,0 +1,116 @@
+diff --git a/requests/cookies.py b/requests/cookies.py
+index a4140adf..bac07037 100644
+--- a/requests/cookies.py
++++ b/requests/cookies.py
+@@ -7,7 +7,7 @@ requests.utils imports from here, so be careful with imports.
+ """
+ 
+ import time
+-import collections
++from collections.abc import MutableMapping, Mapping
+ from .compat import cookielib, urlparse, urlunparse, Morsel
+ 
+ try:
+@@ -156,7 +156,7 @@ class CookieConflictError(RuntimeError):
+     Use .get and .set and include domain and path args in order to be more specific."""
+ 
+ 
+-class RequestsCookieJar(cookielib.CookieJar, collections.MutableMapping):
++class RequestsCookieJar(cookielib.CookieJar, MutableMapping):
+     """Compatibility class; is a cookielib.CookieJar, but exposes a dict interface.
+ 
+     This is the CookieJar we create by default for requests and sessions that
+@@ -199,29 +199,16 @@ class RequestsCookieJar(cookielib.CookieJar, collections.MutableMapping):
+         return c
+ 
+     def keys(self):
+-        """Dict-like keys() that returns a list of names of cookies from the jar.
+-        See values() and items()."""
+-        keys = []
+-        for cookie in iter(self):
+-            keys.append(cookie.name)
+-        return keys
++        """Dict-like keys() that returns an iterator over the names of cookies from the jar."""
++        return (cookie.name for cookie in iter(self))
+ 
+     def values(self):
+-        """Dict-like values() that returns a list of values of cookies from the jar.
+-        See keys() and items()."""
+-        values = []
+-        for cookie in iter(self):
+-            values.append(cookie.value)
+-        return values
++        """Dict-like values() that returns an iterator over the values of cookies from the jar."""
++        return (cookie.value for cookie in iter(self))
+ 
+     def items(self):
+-        """Dict-like items() that returns a list of name-value tuples from the jar.
+-        See keys() and values(). Allows client-code to call "dict(RequestsCookieJar)
+-        and get a vanilla python dict of key value pairs."""
+-        items = []
+-        for cookie in iter(self):
+-            items.append((cookie.name, cookie.value))
+-        return items
++        """Dict-like items() that returns an iterator over the name-value tuples from the jar."""
++        return ((cookie.name, cookie.value) for cookie in iter(self))
+ 
+     def list_domains(self):
+         """Utility method to list all the domains in the jar."""
+@@ -287,8 +274,11 @@ class RequestsCookieJar(cookielib.CookieJar, collections.MutableMapping):
+         if isinstance(other, cookielib.CookieJar):
+             for cookie in other:
+                 self.set_cookie(cookie)
+-        else:
++        elif isinstance(other, Mapping):
+             super(RequestsCookieJar, self).update(other)
++        else:
++            for name in other:
++                self.set_cookie(create_cookie(name, other[name]))
+ 
+     def _find(self, name, domain=None, path=None):
+         """Requests uses this method internally to get cookie values. Takes as args name
+@@ -362,6 +352,18 @@ def create_cookie(name, value, **kwargs):
+         rest={'HttpOnly': None},
+         rfc2109=False,)
+ 
++    # Ensure 'version' is an int or None
++    if not isinstance(result['version'], (int, type(None))):
++        raise TypeError(f"Invalid type for 'version': {type(result['version'])}. Expected int or None.")
++
++    # Ensure 'name' is a str
++    if not isinstance(result['name'], (str, type(None))):
++        raise TypeError(f"Invalid type for 'name': {type(result['name'])}. Expected str or None.")
++
++    # Ensure 'value' is a str or None
++    if not isinstance(result['value'], (str, type(None))):
++        raise TypeError(f"Invalid type for 'value': {type(result['value'])}. Expected str or None.")
++
+     badargs = set(kwargs) - set(result)
+     if badargs:
+         err = 'create_cookie() got unexpected keyword arguments: %s'
+@@ -370,7 +372,7 @@ def create_cookie(name, value, **kwargs):
+     result.update(kwargs)
+     result['port_specified'] = bool(result['port'])
+     result['domain_specified'] = bool(result['domain'])
+-    result['domain_initial_dot'] = result['domain'].startswith('.')
++    result['domain_initial_dot'] = result['domain'].startswith('.') if isinstance(result['domain'], str) else False
+     result['path_specified'] = bool(result['path'])
+ 
+     return cookielib.Cookie(**result)
+@@ -415,9 +417,12 @@ def cookiejar_from_dict(cookie_dict, cookiejar=None, overwrite=True):
+         cookiejar = RequestsCookieJar()
+ 
+     if cookie_dict is not None:
+-        names_from_jar = [cookie.name for cookie in cookiejar]
+-        for name in cookie_dict:
+-            if overwrite or (name not in names_from_jar):
+-                cookiejar.set_cookie(create_cookie(name, cookie_dict[name]))
++        if isinstance(cookie_dict, cookielib.CookieJar):
++            for cookie in cookie_dict:
++                cookiejar.set_cookie(cookie)
++        else:
++            for name, value in cookie_dict.items():
++                if overwrite or (name not in cookiejar):
++                    cookiejar.set_cookie(create_cookie(name, value))
+ 
+     return cookiejar

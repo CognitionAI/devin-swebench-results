@@ -1,0 +1,31 @@
+diff --git a/django/utils/autoreload.py b/django/utils/autoreload.py
+index 7ca0d68fae..afaace8dbf 100644
+--- a/django/utils/autoreload.py
++++ b/django/utils/autoreload.py
+@@ -353,6 +353,26 @@ class StatReloader(BaseReloader):
+             seen_files.add(file)
+             yield file, mtime
+ 
++    def watched_files(self, include_globs=True):
++        """
++        Yield all files that need to be watched, including module files and
++        files within globs.
++        """
++        yield from iter_all_python_module_files()
++        # Explicitly add manage.py to the list of watched files. This is necessary because
++        # manage.py is not part of the installed Django modules and would not normally be
++        # watched by the autoreloader. By adding it to the watched files, we ensure that
++        # changes to manage.py will trigger the autoreload process, as expected in a
++        # development environment.
++        manage_py_path = Path(__file__).resolve(strict=True).parent.parent / 'manage.py'
++        if manage_py_path.exists():
++            yield manage_py_path
++        yield from self.extra_files
++        if include_globs:
++            for directory, patterns in self.directory_globs.items():
++                for pattern in patterns:
++                    yield from directory.glob(pattern)
++
+     @classmethod
+     def check_availability(cls):
+         return True

@@ -1,0 +1,64 @@
+diff --git a/lib/matplotlib/colorbar.py b/lib/matplotlib/colorbar.py
+index c8f49c0ad9..edd04cf89e 100644
+--- a/lib/matplotlib/colorbar.py
++++ b/lib/matplotlib/colorbar.py
+@@ -295,16 +295,18 @@ class Colorbar:
+         if isinstance(mappable, contour.ContourSet):
+             cs = mappable
+             alpha = cs.get_alpha()
+-            boundaries = cs._levels
+-            values = cs.cvalues
++            boundaries = cs.levels
++            # Since cs.cvalues is not accessible, we use cs.levels to infer the values
++            # cs.levels contains the boundary levels, so we take the midpoints as values
++            values = (cs.levels[:-1] + cs.levels[1:]) / 2
+             extend = cs.extend
+             filled = cs.filled
+             if ticks is None:
+-                ticks = ticker.FixedLocator(cs.levels, nbins=10)
++                # Convert cs.levels to a list before passing to ticker.FixedLocator
++                ticks = ticker.FixedLocator(list(cs.levels), nbins=10)
+         elif isinstance(mappable, martist.Artist):
+             alpha = mappable.get_alpha()
+ 
+-        mappable.colorbar = self
+         mappable.colorbar_cid = mappable.callbacks.connect(
+             'changed', self.update_normal)
+ 
+@@ -1032,13 +1034,21 @@ class Colorbar:
+         self.ax.callbacks.disconnect(self._extend_cid1)
+         self.ax.callbacks.disconnect(self._extend_cid2)
+ 
+-        try:
+-            ax = self.mappable.axes
+-        except AttributeError:
++        # Attempt to retrieve the axes associated with the mappable object.
++        # If the mappable object does not have an axes attribute, we return None.
++        # This is a change from the previous behavior where an AttributeError would be raised.
++        ax = getattr(self.mappable, 'axes', None)
++        if ax is None:
+             return
++
+         try:
+             gs = ax.get_subplotspec().get_gridspec()
+             subplotspec = gs.get_topmost_subplotspec()
++        except AttributeError:
++            # If an AttributeError is raised, it means that the mappable object's axes
++            # do not have a subplotspec or gridspec. In this case, we cannot determine
++            # the axes to steal space from, and thus we return None.
++            return
+         except AttributeError:
+             # use_gridspec was False
+             pos = ax.get_position(original=True)
+@@ -1167,9 +1177,9 @@ class Colorbar:
+                 self._set_scale('function', functions=funcs)
+             elif self.spacing == 'proportional':
+                 self._set_scale('linear')
+-        elif getattr(self.norm, '_scale', None):
++        elif getattr(self.norm, 'scale', None):
+             # use the norm's scale (if it exists and is not None):
+-            self._set_scale(self.norm._scale)
++            self._set_scale(self.norm.scale)
+         elif type(self.norm) is colors.Normalize:
+             # plain Normalize:
+             self._set_scale('linear')

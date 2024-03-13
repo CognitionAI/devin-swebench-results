@@ -1,0 +1,48 @@
+diff --git a/setup.py b/setup.py
+index 3d499983f..60b760634 100644
+--- a/setup.py
++++ b/setup.py
+@@ -21,7 +21,7 @@ install_requires = [
+     'sphinxcontrib-htmlhelp',
+     'sphinxcontrib-serializinghtml',
+     'sphinxcontrib-qthelp',
+-    'Jinja2>=2.3',
++    'Jinja2<3.1',
+     'Pygments>=2.0',
+     'docutils>=0.12',
+     'snowballstemmer>=1.1',
+diff --git a/sphinx/domains/python.py b/sphinx/domains/python.py
+index fc1136ae2..6101de56a 100644
+--- a/sphinx/domains/python.py
++++ b/sphinx/domains/python.py
+@@ -623,7 +623,7 @@ class PyVariable(PyObject):
+ 
+         typ = self.options.get('type')
+         if typ:
+-            signode += addnodes.desc_annotation(typ, '', nodes.Text(': '), type_to_xref(typ))
++            signode += addnodes.desc_annotation(typ, '', nodes.Text(': '), *_parse_annotation(typ))
+ 
+         value = self.options.get('value')
+         if value:
+@@ -868,7 +868,7 @@ class PyAttribute(PyObject):
+ 
+         typ = self.options.get('type')
+         if typ:
+-            signode += addnodes.desc_annotation(typ, '', nodes.Text(': '), type_to_xref(typ))
++            signode += addnodes.desc_annotation(typ, '', nodes.Text(': '), *_parse_annotation(typ))
+ 
+         value = self.options.get('value')
+         if value:
+diff --git a/tox.ini b/tox.ini
+index d9f040544..bf39854b6 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -28,7 +28,7 @@ extras =
+ setenv =
+     PYTHONWARNINGS = all,ignore::ImportWarning:importlib._bootstrap_external,ignore::DeprecationWarning:site,ignore::DeprecationWarning:distutils
+ commands=
+-    pytest --durations 25 {posargs}
++    pytest -rA --durations 25 {posargs}
+ 
+ [testenv:flake8]
+ basepython = python3

@@ -1,0 +1,33 @@
+diff --git a/sklearn/linear_model/ridge.py b/sklearn/linear_model/ridge.py
+index e1fc9b424..b7048bd82 100644
+--- a/sklearn/linear_model/ridge.py
++++ b/sklearn/linear_model/ridge.py
+@@ -436,6 +436,8 @@ def _ridge_regression(X, y, alpha, sample_weight=None, solver='auto',
+         raise ValueError('Solver %s not understood' % solver)
+ 
+     n_iter = None
++    # Initialize intercept as a one-dimensional array for single target or array of zeros for multi-target
++    intercept = np.zeros(y.shape[1] if y.ndim > 1 else 1, dtype=X.dtype)
+     if solver == 'sparse_cg':
+         coef = _solve_sparse_cg(X, y, alpha,
+                                 max_iter=max_iter,
+@@ -471,7 +473,9 @@ def _ridge_regression(X, y, alpha, sample_weight=None, solver='auto',
+ 
+         coef = np.empty((y.shape[1], n_features))
+         n_iter = np.empty(y.shape[1], dtype=np.int32)
+-        intercept = np.zeros((y.shape[1], ))
++        if return_intercept:
++            # Initialize intercept as a one-dimensional array for single target or array of zeros for multi-target
++            intercept = np.zeros(y.shape[1] if y.ndim > 1 else 1)
+         for i, (alpha_i, target) in enumerate(zip(alpha, y.T)):
+             init = {'coef': np.zeros((n_features + int(return_intercept), 1))}
+             coef_, n_iter_, _ = sag_solver(
+@@ -486,7 +490,7 @@ def _ridge_regression(X, y, alpha, sample_weight=None, solver='auto',
+                 coef[i] = coef_
+             n_iter[i] = n_iter_
+ 
+-        if intercept.shape[0] == 1:
++        if ravel and intercept.shape[0] == 1:
+             intercept = intercept[0]
+         coef = np.asarray(coef)
+ 

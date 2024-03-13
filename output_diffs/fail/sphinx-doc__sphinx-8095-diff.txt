@@ -1,0 +1,228 @@
+diff --git a/setup.py b/setup.py
+index a404f1fa5..250ef5b61 100644
+--- a/setup.py
++++ b/setup.py
+@@ -21,7 +21,7 @@ install_requires = [
+     'sphinxcontrib-htmlhelp',
+     'sphinxcontrib-serializinghtml',
+     'sphinxcontrib-qthelp',
+-    'Jinja2>=2.3',
++    'Jinja2<3.1',
+     'Pygments>=2.0',
+     'docutils>=0.12',
+     'snowballstemmer>=1.1',
+diff --git a/sphinx/ext/napoleon/docstring.py b/sphinx/ext/napoleon/docstring.py
+index 29799cb06..4ac0c5372 100644
+--- a/sphinx/ext/napoleon/docstring.py
++++ b/sphinx/ext/napoleon/docstring.py
+@@ -14,7 +14,7 @@ import collections
+ import inspect
+ import re
+ from functools import partial
+-from typing import Any, Callable, Dict, List, Tuple, Union
++from typing import Any, Callable, Dict, List, Tuple, Union, Optional, Type
+ 
+ from sphinx.application import Sphinx
+ from sphinx.config import Config as SphinxConfig
+@@ -123,8 +123,8 @@ class GoogleDocstring:
+     _name_rgx = re.compile(r"^\s*((?::(?P<role>\S+):)?`(?P<name>~?[a-zA-Z0-9_.-]+)`|"
+                            r" (?P<name2>~?[a-zA-Z0-9_.-]+))\s*", re.X)
+ 
+-    def __init__(self, docstring: Union[str, List[str]], config: SphinxConfig = None,
+-                 app: Sphinx = None, what: str = '', name: str = '',
++    def __init__(self, docstring: Union[str, List[str]], config: Optional[SphinxConfig] = None,
++                 app: Optional[Sphinx] = None, what: str = '', name: str = '',
+                  obj: Any = None, options: Any = None) -> None:
+         self._config = config
+         self._app = app
+@@ -263,7 +263,7 @@ class GoogleDocstring:
+             _type, _name = _name, _type
+         indent = self._get_indent(line) + 1
+         _descs = [_desc] + self._dedent(self._consume_indented_block(indent))
+-        _descs = self.__class__(_descs, self._config).lines()
++        _descs = self.__class__(_descs, self._config if isinstance(self._config, SphinxConfig) else None).lines()
+         return _name, _type, _descs
+ 
+     def _consume_fields(self, parse_type: bool = True, prefer_type: bool = False,
+@@ -303,7 +303,7 @@ class GoogleDocstring:
+ 
+                 _type = before
+ 
+-            _desc = self.__class__(_desc, self._config).lines()
++            _desc = self.__class__(_desc, self._config if isinstance(self._config, SphinxConfig) else None).lines()
+             return [(_name, _type, _desc,)]
+         else:
+             return []
+@@ -374,9 +374,9 @@ class GoogleDocstring:
+             return ['.. %s::' % admonition, '']
+ 
+     def _format_block(self, prefix: str, lines: List[str], padding: str = None) -> List[str]:
++        if padding is None:
++            padding = ' ' * len(prefix)
+         if lines:
+-            if padding is None:
+-                padding = ' ' * len(prefix)
+             result_lines = []
+             for i, line in enumerate(lines):
+                 if i == 0:
+@@ -537,19 +537,20 @@ class GoogleDocstring:
+                     not self._is_indented(line, self._section_indent)))
+ 
+     def _load_custom_sections(self) -> None:
+-        if self._config.napoleon_custom_sections is not None:
+-            for entry in self._config.napoleon_custom_sections:
+-                if isinstance(entry, str):
+-                    # if entry is just a label, add to sections list,
+-                    # using generic section logic.
+-                    self._sections[entry.lower()] = self._parse_custom_generic_section
+-                else:
+-                    # otherwise, assume entry is container;
+-                    # [0] is new section, [1] is the section to alias.
+-                    # in the case of key mismatch, just handle as generic section.
+-                    self._sections[entry[0].lower()] = \
+-                        self._sections.get(entry[1].lower(),
+-                                           self._parse_custom_generic_section)
++        if self._config is not None:
++            if self._config.napoleon_custom_sections is not None:
++                for entry in self._config.napoleon_custom_sections:
++                    if isinstance(entry, str):
++                        # if entry is just a label, add to sections list,
++                        # using generic section logic.
++                        self._sections[entry.lower()] = self._parse_custom_generic_section
++                    else:
++                        # otherwise, assume entry is container;
++                        # [0] is new section, [1] is the section to alias.
++                        # in the case of key mismatch, just handle as generic section.
++                        self._sections[entry[0].lower()] = \
++                            self._sections.get(entry[1].lower(),
++                                               self._parse_custom_generic_section)
+ 
+     def _parse(self) -> None:
+         self._parsed_lines = self._consume_empty()
+@@ -899,32 +900,36 @@ def _token_type(token: str, location: str = None) -> str:
+     ):
+         type_ = "literal"
+     elif token.startswith("{"):
+-        logger.warning(
+-            __("invalid value set (missing closing brace): %s"),
+-            token,
+-            location=location,
+-        )
++        if not token.endswith("}") and not token.startswith('Literal['):
++            logger.warning(
++                __("invalid value set (missing closing brace): %s"),
++                token,
++                location=location,
++            )
+         type_ = "literal"
+     elif token.endswith("}"):
+-        logger.warning(
+-            __("invalid value set (missing opening brace): %s"),
+-            token,
+-            location=location,
+-        )
++        if not token.startswith("{") and not token.endswith(']'):
++            logger.warning(
++                __("invalid value set (missing opening brace): %s"),
++                token,
++                location=location,
++            )
+         type_ = "literal"
+     elif token.startswith("'") or token.startswith('"'):
+-        logger.warning(
+-            __("malformed string literal (missing closing quote): %s"),
+-            token,
+-            location=location,
+-        )
++        if not token.endswith("'") and not token.endswith('"'):
++            logger.warning(
++                __("malformed string literal (missing closing quote): %s"),
++                token,
++                location=location,
++            )
+         type_ = "literal"
+     elif token.endswith("'") or token.endswith('"'):
+-        logger.warning(
+-            __("malformed string literal (missing opening quote): %s"),
+-            token,
+-            location=location,
+-        )
++        if not token.startswith("'") and not token.startswith('"'):
++            logger.warning(
++                __("malformed string literal (missing opening quote): %s"),
++                token,
++                location=location,
++            )
+         type_ = "literal"
+     elif token in ("optional", "default"):
+         # default is not a official keyword (yet) but supported by the
+@@ -1067,8 +1072,8 @@ class NumpyDocstring(GoogleDocstring):
+             The lines of the docstring in a list.
+ 
+     """
+-    def __init__(self, docstring: Union[str, List[str]], config: SphinxConfig = None,
+-                 app: Sphinx = None, what: str = '', name: str = '',
++    def __init__(self, docstring: Union[str, List[str]], config: Optional[SphinxConfig] = None,
++                 app: Optional[Sphinx] = None, what: str = '', name: str = '',
+                  obj: Any = None, options: Any = None) -> None:
+         self._directive_sections = ['.. index::']
+         super().__init__(docstring, config, app, what, name, obj, options)
+@@ -1104,6 +1109,8 @@ class NumpyDocstring(GoogleDocstring):
+             _name, _type = line, ''
+         _name, _type = _name.strip(), _type.strip()
+         _name = self._escape_args_and_kwargs(_name)
++        if not isinstance(self._config, SphinxConfig):
++            self._config = None
+         _type = _convert_numpy_type_spec(
+             _type,
+             location=self._get_location(),
+@@ -1114,7 +1121,7 @@ class NumpyDocstring(GoogleDocstring):
+             _type, _name = _name, _type
+         indent = self._get_indent(line) + 1
+         _desc = self._dedent(self._consume_indented_block(indent))
+-        _desc = self.__class__(_desc, self._config).lines()
++        _desc = self.__class__(_desc, self._config if isinstance(self._config, SphinxConfig) else None).lines()
+         return _name, _type, _desc
+ 
+     def _consume_returns_section(self) -> List[Tuple[str, str, List[str]]]:
+@@ -1196,13 +1203,15 @@ class NumpyDocstring(GoogleDocstring):
+ 
+             m = self._name_rgx.match(line)
+             if m and line[m.end():].strip().startswith(':'):
+-                push_item(current_func, rest)
++                if current_func is not None:
++                    push_item(current_func, rest)
+                 current_func, line = line[:m.end()], line[m.end():]
+                 rest = [line.split(':', 1)[1].strip()]
+                 if not rest[0]:
+                     rest = []
+             elif not line.startswith(' '):
+-                push_item(current_func, rest)
++                if current_func is not None:
++                    push_item(current_func, rest)
+                 current_func = None
+                 if ',' in line:
+                     for func in line.split(','):
+@@ -1212,7 +1221,8 @@ class NumpyDocstring(GoogleDocstring):
+                     current_func = line
+             elif current_func is not None:
+                 rest.append(line.strip())
+-        push_item(current_func, rest)
++        if current_func is not None:
++            push_item(current_func, rest)
+ 
+         if not items:
+             return []
+diff --git a/tox.ini b/tox.ini
+index bddd822a6..34baee205 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -27,7 +27,7 @@ extras =
+ setenv =
+     PYTHONWARNINGS = all,ignore::ImportWarning:importlib._bootstrap_external,ignore::DeprecationWarning:site,ignore::DeprecationWarning:distutils
+ commands=
+-    pytest --durations 25 {posargs}
++    pytest -rA --durations 25 {posargs}
+ 
+ [testenv:flake8]
+ basepython = python3

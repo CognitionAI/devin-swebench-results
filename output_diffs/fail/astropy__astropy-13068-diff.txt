@@ -1,0 +1,59 @@
+diff --git a/astropy/time/formats.py b/astropy/time/formats.py
+index b3e6ffb8a3..ff0fac848b 100644
+--- a/astropy/time/formats.py
++++ b/astropy/time/formats.py
+@@ -487,6 +487,15 @@ class TimeJD(TimeNumeric):
+         self._check_scale(self._scale)  # Validate scale.
+         self.jd1, self.jd2 = day_frac(val1, val2)
+ 
++    def to_value(self, jd1=None, jd2=None, parent=None, out_subfmt=None):
++        if jd1 is None:
++            jd1 = self.jd1
++        if jd2 is None:
++            jd2 = self.jd2
++        return super().to_value(jd1=jd1, jd2=jd2, parent=parent, out_subfmt=out_subfmt)
++
++    value = property(to_value)
++
+ 
+ class TimeMJD(TimeNumeric):
+     """
+@@ -502,10 +511,12 @@ class TimeMJD(TimeNumeric):
+         jd1 += erfa.DJM0  # erfa.DJM0=2400000.5 (from erfam.h).
+         self.jd1, self.jd2 = day_frac(jd1, jd2)
+ 
+-    def to_value(self, **kwargs):
+-        jd1 = self.jd1 - erfa.DJM0  # This cannot lose precision.
+-        jd2 = self.jd2
+-        return super().to_value(jd1=jd1, jd2=jd2, **kwargs)
++    def to_value(self, jd1=None, jd2=None, parent=None, out_subfmt=None):
++        if jd1 is None:
++            jd1 = self.jd1 - erfa.DJM0  # This cannot lose precision.
++        if jd2 is None:
++            jd2 = self.jd2
++        return super().to_value(jd1=jd1, jd2=jd2, parent=parent, out_subfmt=out_subfmt)
+ 
+     value = property(to_value)
+ 
+@@ -1841,13 +1852,19 @@ class TimeDeltaNumeric(TimeDeltaFormat, TimeNumeric):
+         self._check_scale(self._scale)  # Validate scale.
+         self.jd1, self.jd2 = day_frac(val1, val2, divisor=1. / self.unit)
+ 
+-    def to_value(self, **kwargs):
++    def to_value(self, jd1=None, jd2=None, parent=None, out_subfmt=None):
+         # Note that 1/unit is always exactly representable, so the
+         # following multiplications are exact.
+         factor = 1. / self.unit
+         jd1 = self.jd1 * factor
+         jd2 = self.jd2 * factor
+-        return super().to_value(jd1=jd1, jd2=jd2, **kwargs)
++        # If jd1 is a scalar, jd2 will be a scalar, and we can use the
++        # optimized two_sum function.  Otherwise, we use the ufunc.
++        if jd1.shape:
++            jd1, jd2 = two_sum(jd1, jd2)
++        else:
++            jd1, jd2 = two_sum(jd1, jd2)
++        return super().to_value(jd1=jd1, jd2=jd2, parent=parent, out_subfmt=out_subfmt)
+ 
+     value = property(to_value)
+ 

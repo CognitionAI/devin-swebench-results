@@ -1,0 +1,14 @@
+diff --git a/sympy/combinatorics/partitions.py b/sympy/combinatorics/partitions.py
+index c036965f00..188e62569a 100644
+--- a/sympy/combinatorics/partitions.py
++++ b/sympy/combinatorics/partitions.py
+@@ -301,6 +301,9 @@ def from_rgs(self, rgs, elements):
+             raise ValueError('some blocks of the partition were empty.')
+         return Partition(*partition)
+ 
++    def __str__(self):
++        return 'Partition(' + ', '.join(str(list(arg)) for arg in self.args) + ')'
++
+ 
+ class IntegerPartition(Basic):
+     """

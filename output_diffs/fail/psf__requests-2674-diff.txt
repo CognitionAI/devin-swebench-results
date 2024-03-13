@@ -1,0 +1,81 @@
+diff --git a/requests/sessions.py b/requests/sessions.py
+index 820919ee..5578ea49 100644
+--- a/requests/sessions.py
++++ b/requests/sessions.py
+@@ -9,7 +9,7 @@ requests (cookies, auth, proxies).
+ 
+ """
+ import os
+-from collections import Mapping
++from collections.abc import Mapping
+ from datetime import datetime
+ 
+ from .auth import _basic_auth_str
+@@ -19,8 +19,13 @@ from .cookies import (
+ from .models import Request, PreparedRequest, DEFAULT_REDIRECT_LIMIT
+ from .hooks import default_hooks, dispatch_hook
+ from .utils import to_key_val_list, default_headers, to_native_string
++from .packages.urllib3.exceptions import (
++    DecodeError, ReadTimeoutError, ProtocolError, LocationParseError,
++    TimeoutError, ConnectTimeoutError)
+ from .exceptions import (
+-    TooManyRedirects, InvalidSchema, ChunkedEncodingError, ContentDecodingError)
++    HTTPError, MissingSchema, InvalidURL, ChunkedEncodingError,
++    ContentDecodingError, ConnectionError, StreamConsumedError, Timeout,
++    InvalidSchema, TooManyRedirects)
+ from .packages.urllib3._collections import RecentlyUsedContainer
+ from .structures import CaseInsensitiveDict
+ 
+@@ -59,15 +64,19 @@ def merge_setting(request_setting, session_setting, dict_class=OrderedDict):
+     ):
+         return request_setting
+ 
+-    merged_setting = dict_class(to_key_val_list(session_setting))
+-    merged_setting.update(to_key_val_list(request_setting))
++    # Ensure the output from to_key_val_list is in the correct format
++    session_items = to_key_val_list(session_setting)
++    request_items = to_key_val_list(request_setting)
++    if session_items is None:
++        session_items = []
++    if request_items is None:
++        request_items = []
+ 
+-    # Remove keys that are set to None.
+-    for (k, v) in request_setting.items():
+-        if v is None:
+-            del merged_setting[k]
++    merged_setting = dict_class(session_items)
++    merged_setting.update(request_items)
+ 
+-    merged_setting = dict((k, v) for (k, v) in merged_setting.items() if v is not None)
++    # Remove keys that are set to None.
++    merged_setting = {k: v for k, v in merged_setting.items() if v is not None}
+ 
+     return merged_setting
+ 
+@@ -462,7 +471,11 @@ class Session(SessionRedirectMixin):
+             'allow_redirects': allow_redirects,
+         }
+         send_kwargs.update(settings)
+-        resp = self.send(prep, **send_kwargs)
++        try:
++            resp = self.send(prep, **send_kwargs)
++        except (TimeoutError, ConnectTimeoutError) as e:
++            # Wrap urllib3's TimeoutError and ConnectTimeoutError in requests' Timeout exception
++            raise Timeout(e)
+ 
+         return resp
+ 
+@@ -570,7 +583,11 @@ class Session(SessionRedirectMixin):
+         start = datetime.utcnow()
+ 
+         # Send the request
+-        r = adapter.send(request, **kwargs)
++        try:
++            r = adapter.send(request, **kwargs)
++        except (TimeoutError, ConnectTimeoutError) as e:
++            # Wrap urllib3's TimeoutError and ConnectTimeoutError in requests' Timeout exception
++            raise Timeout(e)
+ 
+         # Total elapsed time of the request (approximately)
+         r.elapsed = datetime.utcnow() - start

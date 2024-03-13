@@ -1,0 +1,45 @@
+diff --git a/sphinx/util/typing.py b/sphinx/util/typing.py
+index 4e1b184e0..08f225fa6 100644
+--- a/sphinx/util/typing.py
++++ b/sphinx/util/typing.py
+@@ -135,6 +135,9 @@ def _restify_py37(cls: Optional[Type]) -> str:
+     """Convert python class to a reST reference."""
+     from sphinx.util import inspect  # lazy loading
+ 
++    if hasattr(cls, '__args__'):
++        return repr(cls)
++
+     if (inspect.isgenericalias(cls) and
+             cls.__module__ == 'typing' and cls.__origin__ is Union):
+         # Union
+@@ -193,6 +196,7 @@ def _restify_py37(cls: Optional[Type]) -> str:
+ 
+ 
+ def _restify_py36(cls: Optional[Type]) -> str:
++    """Convert python class to a reST reference."""
+     module = getattr(cls, '__module__', None)
+     if module == 'typing':
+         if getattr(cls, '_name', None):
+@@ -210,6 +214,9 @@ def _restify_py36(cls: Optional[Type]) -> str:
+     else:
+         qualname = repr(cls)
+ 
++    if hasattr(cls, '__args__'):
++        return repr(cls)
++
+     if (isinstance(cls, typing.TupleMeta) and  # type: ignore
+             not hasattr(cls, '__tuple_params__')):
+         if module == 'typing':
+diff --git a/tox.ini b/tox.ini
+index a363e187f..3b8bc12d0 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -27,7 +27,7 @@ setenv =
+     PYTHONWARNINGS = all,ignore::ImportWarning:importlib._bootstrap_external,ignore::DeprecationWarning:site,ignore::DeprecationWarning:distutils,ignore::DeprecationWarning:pip._vendor.packaging.version
+     PYTEST_ADDOPTS = {env:PYTEST_ADDOPTS:} --color yes
+ commands=
+-    python -X dev -m pytest --durations 25 {posargs}
++    python -X dev -m pytest -rA --durations 25 {posargs}
+ 
+ [testenv:flake8]
+ basepython = python3

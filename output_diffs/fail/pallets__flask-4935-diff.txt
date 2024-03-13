@@ -1,0 +1,51 @@
+diff --git a/src/flask/blueprints.py b/src/flask/blueprints.py
+index f6d62ba8..ea6017f0 100644
+--- a/src/flask/blueprints.py
++++ b/src/flask/blueprints.py
+@@ -450,22 +450,46 @@ class Blueprint(Scaffold):
+                 self.cli.name = cli_resolved_group
+                 app.cli.add_command(self.cli)
+ 
++        """
++        Modifications to Blueprint registration to support subdomains in nested blueprints:
++
++        - The register method now includes logic to ensure that nested blueprints inherit the subdomain from the parent blueprint.
++        - If a subdomain is not explicitly set for a nested blueprint, it will inherit the subdomain from the parent blueprint's BlueprintSetupState.
++        - This change addresses an issue where nested blueprints were not accessible when mounted on subdomains.
++        """
++
++        # Loop through each registered nested blueprint
+         for blueprint, bp_options in self._blueprints:
+             bp_options = bp_options.copy()
+             bp_url_prefix = bp_options.get("url_prefix")
++            # Check if a subdomain is set for the nested blueprint
++            bp_subdomain = bp_options.get("subdomain")
+ 
++            # Inherit url_prefix from the parent blueprint if not set on the nested blueprint
+             if bp_url_prefix is None:
+                 bp_url_prefix = blueprint.url_prefix
+ 
++            # Concatenate parent's url_prefix with nested blueprint's url_prefix if both are set
+             if state.url_prefix is not None and bp_url_prefix is not None:
+                 bp_options["url_prefix"] = (
+                     state.url_prefix.rstrip("/") + "/" + bp_url_prefix.lstrip("/")
+                 )
++            # Set the nested blueprint's url_prefix if only it is set
+             elif bp_url_prefix is not None:
+                 bp_options["url_prefix"] = bp_url_prefix
++            # Set the parent blueprint's url_prefix if only it is set
+             elif state.url_prefix is not None:
+                 bp_options["url_prefix"] = state.url_prefix
+ 
++            # Inherit subdomain from the parent blueprint if not set on the nested blueprint
++            if bp_subdomain is None:
++                bp_subdomain = state.subdomain
++
++            # Set the nested blueprint's subdomain if it is set
++            if bp_subdomain is not None:
++                bp_options["subdomain"] = bp_subdomain
++
++            # Register the nested blueprint with the updated options
+             bp_options["name_prefix"] = name
+             blueprint.register(app, bp_options)
+ 

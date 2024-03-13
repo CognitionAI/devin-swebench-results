@@ -1,0 +1,14 @@
+diff --git a/django/db/models/sql/query.py b/django/db/models/sql/query.py
+index 781dfd5499..d4334dcc8e 100644
+--- a/django/db/models/sql/query.py
++++ b/django/db/models/sql/query.py
+@@ -2255,6 +2255,9 @@ class Query(BaseExpression):
+         certain related models (as opposed to all models, when
+         self.select_related=True).
+         """
++        if isinstance(self.deferred_loading[0], set):
++            only_load = self.deferred_loading[0].difference(self.deferred_loading[1])
++            fields = [f for f in fields if f.split(LOOKUP_SEP)[0] in only_load]
+         if isinstance(self.select_related, bool):
+             field_dict = {}
+         else:

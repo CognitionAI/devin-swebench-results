@@ -1,0 +1,21 @@
+diff --git a/sklearn/multioutput.py b/sklearn/multioutput.py
+index cddbcbfff..accced9f4 100644
+--- a/sklearn/multioutput.py
++++ b/sklearn/multioutput.py
+@@ -194,7 +194,15 @@ class MultiOutputEstimator(six.with_metaclass(ABCMeta, BaseEstimator,
+             delayed(parallel_helper)(e, 'predict', X)
+             for e in self.estimators_)
+ 
+-        return np.asarray(y).T
++        if y is None:
++            raise ValueError("The estimator predictions are None.")
++        if not y:
++            raise ValueError("The estimator predictions are empty.")
++
++        if isinstance(y[0][0], str):
++            return y
++        else:
++            return np.asarray(y).T
+ 
+ 
+ class MultiOutputRegressor(MultiOutputEstimator, RegressorMixin):

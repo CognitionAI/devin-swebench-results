@@ -1,0 +1,78 @@
+diff --git a/lib/matplotlib/gridspec.py b/lib/matplotlib/gridspec.py
+index e3abb4425a..6cb917b32b 100644
+--- a/lib/matplotlib/gridspec.py
++++ b/lib/matplotlib/gridspec.py
+@@ -467,6 +467,73 @@ class GridSpec(GridSpecBase):
+         if kwargs:
+             self.update(**kwargs)
+ 
++    def gridspec_mosaic(self, mosaic, **kwargs):
++        """
++        Create a dictionary of SubplotSpecs from a mosaic pattern.
++
++        Parameters
++        ----------
++        mosaic : str or list of str
++            A visual layout of how the grid should be structured.
++
++        Returns
++        -------
++        dict of SubplotSpec
++            A dictionary mapping labels to SubplotSpec objects.
++
++        Other Parameters
++        ----------------
++        **kwargs
++            Additional keyword arguments to be passed to the SubplotSpec creation.
++
++        Examples
++        --------
++        >>> fig = plt.figure()
++        >>> gs = fig.add_gridspec(3, 3)
++        >>> specs = gs.gridspec_mosaic([
++        ...     "abc",
++        ...     "def",
++        ...     "ghi"
++        ... ])
++        >>> ax1 = fig.add_subplot(specs["a"], projection='polar')
++        >>> ax2 = fig.add_subplot(specs["b"], projection='rectilinear')
++        """
++        # Normalize the mosaic input to a list of strings if it's a single string
++        if isinstance(mosaic, str):
++            mosaic = [mosaic]
++
++        # Initialize the dictionary to hold the SubplotSpecs
++        specs_dict = {}
++
++        # Determine the number of rows and columns in the mosaic
++        nrows = len(mosaic)
++        ncols = max(len(row) for row in mosaic)
++
++        # Iterate over the mosaic pattern
++        for row_idx, row in enumerate(mosaic):
++            for col_idx, char in enumerate(row):
++                if char not in specs_dict:
++                    # Determine the span of the current character
++                    rowspan = [row_idx, row_idx + 1]
++                    colspan = [col_idx, col_idx + 1]
++
++                    # Expand the span to include adjacent cells with the same character
++                    for i in range(row_idx, nrows):
++                        if mosaic[i][col_idx] == char:
++                            rowspan[1] = i + 1
++                        else:
++                            break
++                    for j in range(col_idx, ncols):
++                        if mosaic[row_idx][j] == char:
++                            colspan[1] = j + 1
++                        else:
++                            break
++
++                    # Create a new SubplotSpec for this character
++                    specs_dict[char] = self[rowspan[0]:rowspan[1], colspan[0]:colspan[1]]
++
++        return specs_dict
++
+ 
+ class GridSpecFromSubplotSpec(GridSpecBase):
+     """

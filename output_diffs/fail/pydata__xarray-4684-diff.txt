@@ -1,0 +1,73 @@
+diff --git a/xarray/coding/times.py b/xarray/coding/times.py
+index 59f8b897..3e1aa02c 100644
+--- a/xarray/coding/times.py
++++ b/xarray/coding/times.py
+@@ -156,8 +156,8 @@ def _decode_datetime_with_pandas(flat_num_dates, units, calendar):
+     # cause an OutOfBoundsDatetime (Overflow) error
+     with warnings.catch_warnings():
+         warnings.filterwarnings("ignore", "invalid value encountered", RuntimeWarning)
+-        pd.to_timedelta(flat_num_dates.min(), delta) + ref_date
+-        pd.to_timedelta(flat_num_dates.max(), delta) + ref_date
++        pd.to_timedelta(flat_num_dates.min(), unit=delta) + ref_date
++        pd.to_timedelta(flat_num_dates.max(), unit=delta) + ref_date
+ 
+     # Cast input dates to integers of nanoseconds because `pd.to_datetime`
+     # works much faster when dealing with integers
+@@ -413,9 +413,8 @@ def encode_cf_datetime(dates, units=None, calendar=None):
+         if ref_date.tz is not None:
+             ref_date = ref_date.tz_convert(None)
+ 
+-        # Wrap the dates in a DatetimeIndex to do the subtraction to ensure
+-        # an OverflowError is raised if the ref_date is too far away from
+-        # dates to be encoded (GH 2272).
++        # Here we do not cast to int, to ensure we keep the full precision
++        # for milliseconds
+         num = (pd.DatetimeIndex(dates.ravel()) - ref_date) / time_delta
+         num = num.values.reshape(dates.shape)
+ 
+@@ -423,9 +422,45 @@ def encode_cf_datetime(dates, units=None, calendar=None):
+         num = _encode_datetime_with_cftime(dates, units, calendar)
+ 
+     num = cast_to_int_if_safe(num)
++    print("Encoded datetime data:", num)
+     return (num, units, calendar)
+ 
+ 
++def _cleanup_netcdf_time_units(units):
++    delta, ref_date = _unpack_netcdf_time_units(units)
++    try:
++        units = "{} since {}".format(delta, format_timestamp(ref_date))
++    except OutOfBoundsDatetime:
++        # don't worry about reifying the units if they're out of bounds
++        pass
++    return units
++
++
++def _encode_datetime_with_cftime(dates, units, calendar):
++    """Fallback method for encoding dates using cftime.
++
++    This method is more flexible than xarray's parsing using datetime64[ns]
++    arrays but also slower because it loops over each element.
++    """
++    import cftime
++
++    if np.issubdtype(dates.dtype, np.datetime64):
++        # numpy's broken datetime conversion only works for us precision
++        dates = dates.astype("M8[us]").astype(datetime)
++
++    def encode_datetime(d):
++        return np.nan if d is None else cftime.date2num(d, units, calendar)
++
++    return np.vectorize(encode_datetime)(dates)
++
++
++def cast_to_int_if_safe(num):
++    int_num = np.array(num, dtype=np.int64)
++    if (num == int_num).all():
++        num = int_num
++    return num
++
++
+ def encode_cf_timedelta(timedeltas, units=None):
+     if units is None:
+         units = infer_timedelta_units(timedeltas)

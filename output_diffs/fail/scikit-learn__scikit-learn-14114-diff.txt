@@ -1,0 +1,25 @@
+diff --git a/sklearn/ensemble/weight_boosting.py b/sklearn/ensemble/weight_boosting.py
+index 3cb4baa0d..631a79b91 100644
+--- a/sklearn/ensemble/weight_boosting.py
++++ b/sklearn/ensemble/weight_boosting.py
+@@ -780,9 +780,17 @@ class AdaBoostClassifier(BaseWeightBoosting, ClassifierMixin):
+             proba = sum(_samme_proba(estimator, n_classes, X)
+                         for estimator in self.estimators_)
+         else:  # self.algorithm == "SAMME"
+-            proba = sum(estimator.predict_proba(X) * w
+-                        for estimator, w in zip(self.estimators_,
+-                                                self.estimator_weights_))
++            proba = np.zeros((X.shape[0], self.n_classes_))
++            for estimator, w in zip(self.estimators_, self.estimator_weights_):
++                if hasattr(estimator, "predict_proba"):
++                    proba += estimator.predict_proba(X) * w
++                else:
++                    predictions = estimator.predict(X)
++                    proba_tmp = np.zeros((X.shape[0], self.n_classes_))
++                    for i, pred in enumerate(predictions):
++                        class_index = np.where(self.classes_ == pred)[0][0]
++                        proba_tmp[i, class_index] = 1.0
++                    proba += proba_tmp * w
+ 
+         proba /= self.estimator_weights_.sum()
+         proba = np.exp((1. / (n_classes - 1)) * proba)

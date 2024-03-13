@@ -1,0 +1,68 @@
+diff --git a/django/contrib/auth/hashers.py b/django/contrib/auth/hashers.py
+index dac1ceacf6..953dd28d8c 100644
+--- a/django/contrib/auth/hashers.py
++++ b/django/contrib/auth/hashers.py
+@@ -71,7 +71,7 @@ def make_password(password, salt=None, hasher='default'):
+     access to staff or superuser accounts. See ticket #20079 for more info.
+     """
+     if password is None:
+-        return UNUSABLE_PASSWORD_PREFIX + get_random_string(UNUSABLE_PASSWORD_SUFFIX_LENGTH)
++        return UNUSABLE_PASSWORD_PREFIX + get_random_string(length=UNUSABLE_PASSWORD_SUFFIX_LENGTH)
+     hasher = get_hasher(hasher)
+     salt = salt or hasher.salt()
+     return hasher.encode(password, salt)
+@@ -185,7 +185,7 @@ class BasePasswordHasher:
+ 
+     def salt(self):
+         """Generate a cryptographically secure nonce salt in ASCII."""
+-        return get_random_string()
++        return get_random_string(length=12)
+ 
+     def verify(self, password, encoded):
+         """Check if the given password is correct."""
+diff --git a/django/utils/crypto.py b/django/utils/crypto.py
+index edeb336f34..d5decc5086 100644
+--- a/django/utils/crypto.py
++++ b/django/utils/crypto.py
+@@ -4,9 +4,11 @@ Django's standard crypto functions and utilities.
+ import hashlib
+ import hmac
+ import secrets
++import warnings
+ 
+ from django.conf import settings
+ from django.utils.encoding import force_bytes
++from django.utils.deprecation import RemovedInDjango40Warning
+ 
+ 
+ class InvalidAlgorithm(ValueError):
+@@ -44,15 +46,26 @@ def salted_hmac(key_salt, value, secret=None, *, algorithm='sha1'):
+     return hmac.new(key, msg=force_bytes(value), digestmod=hasher)
+ 
+ 
+-def get_random_string(length=12,
++def get_random_string(*, length=None,
+                       allowed_chars='abcdefghijklmnopqrstuvwxyz'
+                                     'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'):
+     """
+     Return a securely generated random string.
+ 
+-    The default length of 12 with the a-z, A-Z, 0-9 character set returns
+-    a 71-bit value. log_2((26+26+10)^12) =~ 71 bits
++    The length argument is now required and no longer has a default value.
++    Callers must specify the length explicitly.
++
++    The a-z, A-Z, 0-9 character set returns a 71-bit value for a length of 12.
++    log_2((26+26+10)^12) =~ 71 bits
+     """
++    if length is None:
++        warnings.warn(
++            'Calling get_random_string without a defined length is deprecated '
++            'and will be removed in Django 5.0.',
++            RemovedInDjango40Warning, stacklevel=2
++        )
++        length = 12
++
+     return ''.join(secrets.choice(allowed_chars) for i in range(length))
+ 
+ 

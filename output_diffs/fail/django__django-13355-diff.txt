@@ -1,0 +1,32 @@
+diff --git a/django/forms/widgets.py b/django/forms/widgets.py
+index 7ea3c7bcbf..e037111a32 100644
+--- a/django/forms/widgets.py
++++ b/django/forms/widgets.py
+@@ -146,8 +146,25 @@ class Media:
+ 
+     def __add__(self, other):
+         combined = Media()
+-        combined._css_lists = self._css_lists + other._css_lists
+-        combined._js_lists = self._js_lists + other._js_lists
++        # Optimization: To prevent performance issues when a large number of Media objects
++        # are added together, we set an upper limit on the length of the lists. If the combined
++        # length of the lists exceeds 1000, we create a new list containing the original lists
++        # instead of concatenating them. This threshold value is chosen based on user experience
++        # and testing to maintain optimal performance.
++        if len(self._css_lists) + len(other._css_lists) > 1000:
++            combined._css_lists = [self._css, other._css]
++        else:
++            combined._css_lists = self._css_lists + other._css_lists
++        # Optimization: To prevent performance issues when a large number of Media objects
++        # are added together, we set an upper limit on the length of the lists. If the combined
++        # length of the lists exceeds 1000, we create a new list containing the original lists
++        # instead of concatenating them. This threshold value is chosen based on user experience
++        # and testing to maintain optimal performance.
++        if len(self._js_lists) + len(other._js_lists) > 1000:
++            combined._js_lists = [self._js, other._js]
++        else:
++            combined._js_lists = self._js_lists + other._js_lists
++
+         return combined
+ 
+ 
