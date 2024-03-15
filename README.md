@@ -1,2 +1,2 @@
 # swebench-results
-Cognitions results and methodology on swebench
+Cognition's results and methodology on SWE-bench
